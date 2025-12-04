@@ -12,15 +12,20 @@
     <div class="posts-container">
       <div class="posts-header">
         <h2>{{ title || '帖子列表' }}</h2>
-        <button v-if="userStore.isLoggedIn" @click="goToCreatePost" class="create-post-button">
-          <span class="button-icon">+</span>
-          <span class="button-text">发帖</span>
-        </button>
+        <div class="header-actions">
+          <button @click="toggleFeaturedFilter" class="filter-button" :class="{ 'active': showFeaturedOnly }">
+            {{ showFeaturedOnly ? '显示全部' : '只看精选' }}
+          </button>
+          <button v-if="userStore.isLoggedIn" @click="goToCreatePost" class="create-post-button">
+            <span class="button-icon">+</span>
+            <span class="button-text">发帖</span>
+          </button>
+        </div>
       </div>
       <div v-if="isLoadingPosts" class="loading">加载中...</div>
       <div v-else-if="posts.length === 0" class="no-posts">暂无帖子</div>
       <div v-else class="posts-list">
-        <div v-for="post in posts" :key="post.id" :class="['post-item', { 'recommended-post': post.is_recommended }]">
+        <div v-for="post in filteredPosts" :key="post.id" :class="['post-item', { 'recommended-post': post.is_recommended }]">
           <div class="post-header">
             <h3 class="post-title" @click="goToPostDetail(post.id)" style="cursor: pointer;">
               {{ post.title }}
@@ -38,12 +43,22 @@
             <span class="view-count">👁 {{ post.view_count }}</span>
           </div>
           <div class="post-comments">
-            <h4>评论 ({{ post.comments.length }})</h4>
+            <div class="comments-header">
+              <h4>评论 ({{ post.comments.length }})</h4>
+              <button 
+                v-if="post.comments.length > 0" 
+                @click="toggleComments(post.id)" 
+                class="toggle-comments-btn"
+              >
+                {{ collapsedComments[post.id] ? '展开' : '折叠' }}
+              </button>
+            </div>
             <div v-if="post.comments.length === 0" class="no-comments">暂无评论</div>
-            <div v-else class="comments-list">
+            <div v-else-if="!collapsedComments[post.id]" class="comments-list">
+              <!-- 渲染顶层评论 -->
               <div v-for="comment in post.comments" :key="comment.id" class="comment-item">
                 <div class="comment-header">
-                  <span class="comment-author">{{ comment.author }}</span>
+                  <span class="comment-author">{{ comment.author.username || comment.author }}</span>
                   <span class="comment-date">{{ comment.created_at }}</span>
                   <span v-if="comment.is_featured" class="featured">精选</span>
                 </div>
@@ -84,6 +99,66 @@
                       {{ isSubmittingComment ? '回复中...' : '回复' }}
                     </button>
                   </div>
+                </div>
+                
+                <!-- 渲染该评论的回复（嵌套评论） -->
+                <div v-if="comment.replies && comment.replies.length > 0" class="replies-container">
+                  <div class="replies-header">
+                    <span class="replies-count">回复 ({{ comment.replies.length }})</span>
+                    <button 
+                      @click="collapsedReplies[comment.id] = !collapsedReplies[comment.id]" 
+                      class="toggle-replies-btn"
+                    >
+                      {{ collapsedReplies[comment.id] ? '展开' : '折叠' }}
+                    </button>
+                  </div>
+                  <div v-if="!collapsedReplies[comment.id]" class="replies-list">
+                    <div v-for="reply in comment.replies" :key="reply.id" class="comment-item reply">
+                    <div class="comment-header">
+                      <span class="comment-author">{{ reply.author.username || reply.author }}</span>
+                      <span class="comment-date">{{ reply.created_at }}</span>
+                      <span v-if="reply.is_featured" class="featured">精选</span>
+                    </div>
+                    <p class="comment-content">{{ reply.content }}</p>
+                    <div class="comment-actions-area">
+                      <div class="comment-stats">
+                        <span class="like-count">👍 {{ reply.like_count }}</span>
+                      </div>
+                      <button 
+                        v-if="userStore.isLoggedIn" 
+                        @click="toggleReplyForm(post.id, reply.id)" 
+                        class="reply-btn"
+                      >
+                        {{ showReplyForms[`${post.id}-${reply.id}`] ? '取消回复' : '回复' }}
+                      </button>
+                    </div>
+                    
+                    <!-- 回复表单 -->
+                    <div v-if="showReplyForms[`${post.id}-${reply.id}`]" class="reply-form">
+                      <textarea
+                        v-model="replyForms[`${post.id}-${reply.id}`]"
+                        placeholder="请输入回复内容"
+                        class="form-control"
+                        rows="2"
+                      ></textarea>
+                      <div class="comment-actions">
+                        <button 
+                          @click="cancelReply(post.id, reply.id)" 
+                          class="cancel-btn"
+                        >
+                          取消
+                        </button>
+                        <button 
+                          @click="submitReply(post.id, reply.id)" 
+                          class="comment-btn"
+                          :disabled="isSubmittingComment || !userStore.isLoggedIn || !replyForms[`${post.id}-${reply.id}`]?.trim()"
+                        >
+                          {{ isSubmittingComment ? '回复中...' : '回复' }}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  </div> <!-- Close replies-list -->
                 </div>
               </div>
             </div>
@@ -165,11 +240,37 @@ const replyForms = reactive<Record<string, string>>({});
 const showCommentForms = reactive<Record<number, boolean>>({});
 // 控制回复表单显示/隐藏的状态
 const showReplyForms = reactive<Record<string, boolean>>({});
+// 控制评论列表折叠/展开的状态
+const collapsedComments = reactive<Record<number, boolean>>({});
+// 控制评论回复列表折叠/展开的状态
+const collapsedReplies = reactive<Record<number, boolean>>({}); // 使用评论ID作为键
+
+// 辅助函数：确保帖子评论处于折叠状态
+const ensureCommentCollapsed = (postId: number, hasComments: boolean) => {
+  if (hasComments) {
+    collapsedComments[postId] = true;
+  } else {
+    // 如果没有评论，不需要显示折叠按钮
+    delete collapsedComments[postId];
+  }
+};
+
+// 辅助函数：确保评论回复处于折叠状态
+const ensureRepliesCollapsed = (commentId: number, hasReplies: boolean) => {
+  if (hasReplies) {
+    collapsedReplies[commentId] = true;
+  } else {
+    // 如果没有回复，不需要显示折叠按钮
+    delete collapsedReplies[commentId];
+  }
+};
 
 // 状态变量
 const isSubmittingComment = ref(false);
 const isLoadingPosts = ref(true);
 const posts = ref<any[]>([]);
+// 控制是否只显示精选帖子
+const showFeaturedOnly = ref(false);
 
 // 消息提示状态
 const message = ref('');
@@ -315,11 +416,31 @@ const submitComment = async (postId: number, parentId?: number) => {
     // 触发评论提交事件
     emit('comment-submitted', postId, content);
     
-    // 刷新帖子列表以显示新评论
-    fetchPosts();
-    
     // 显示成功消息
     showNotification(result.message || '评论提交成功', 'success');
+    
+    // 如果是回复，尝试实时添加到评论列表中
+    if (parentId && result.new_comment) {
+      // 查找对应的帖子
+      const postIndex = posts.value.findIndex(p => p.id === postId);
+      if (postIndex !== -1) {
+        // 查找父评论
+        const parentCommentIndex = posts.value[postIndex].comments.findIndex(c => c.id === parentId);
+        if (parentCommentIndex !== -1) {
+          // 确保父评论有replies数组
+          if (!posts.value[postIndex].comments[parentCommentIndex].replies) {
+            posts.value[postIndex].comments[parentCommentIndex].replies = [];
+          }
+          // 将新回复添加到父评论的replies数组中
+          posts.value[postIndex].comments[parentCommentIndex].replies.push(result.new_comment);
+          // 自动展开该评论的回复
+          collapsedReplies[parentId] = false;
+        }
+      }
+    } else {
+      // 如果是新评论或回复添加失败，重新获取该帖子的评论
+      await fetchCommentsForPost(postId);
+    }
   } catch (error: any) {
     console.error('评论错误:', error.message || error);
     // 显示错误消息
@@ -331,94 +452,102 @@ const submitComment = async (postId: number, parentId?: number) => {
 
 // 获取帖子列表
 const fetchPosts = async () => {
-      isLoadingPosts.value = true;
-      
-      try {
-        // 获取存储的token
-        const token = localStorage.getItem('token');
-        const headers: Record<string, string> = {
-          'Content-Type': 'application/json'
-        };
-        
-        // 如果有token，添加到请求头
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`;
-        }
-        
-        // 根据communityType决定API路径
-        let apiPath = '/api/tiezi/';
-        if (props.communityType) {
-          apiPath = `/api/tiezi/${props.communityType}/`;
-        }
-        
-        // 添加redirect: 'manual'选项，防止自动跟随重定向到不存在的登录页面
-        const response = await fetch(`${baseURL}${apiPath}`, {
-          method: 'GET',
-          headers,
-          credentials: 'omit', // 不发送凭证，避免触发登录重定向
-          redirect: 'manual' // 手动处理重定向，不自动跟随
-        });
-        
-        // 处理302重定向响应
-        if (response.status === 302) {
-          // 不跟随重定向到不存在的登录页面
-          // 直接尝试使用GET请求获取帖子数据，不涉及认证
-          showNotification('尝试获取公开帖子数据', 'info');
-          const publicResponse = await fetch(`${baseURL}${apiPath}`, {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            credentials: 'omit', // 确保不发送凭证
-            redirect: 'manual' // 同样设置为手动处理重定向
-          });
-          
-          // 检查第二个请求是否也返回302
-          if (publicResponse.status === 302) {
-            // 如果第二个请求也返回302，说明无法获取数据
-            showNotification('当前无法获取公开帖子数据，请稍后重试', 'error');
-            posts.value = [];
-          } else if (publicResponse.ok) {
-            const data = await publicResponse.json();
-            // 确保数据结构正确，从success和posts字段获取数据
-          if (data.success && Array.isArray(data.posts)) {
-            // 确保每个帖子都有comments数组，使用后端返回的数据或空数组
-            posts.value = data.posts.map((post: any) => ({ 
-              ...post, 
-              comments: Array.isArray(post.comments) ? post.comments : [] 
-            })); 
-          } else {
-              posts.value = [];
-            }
-          } else {
-            // 如果是其他错误状态码，给出提示但不抛出异常，避免重复请求
-            showNotification(`获取帖子列表失败: ${publicResponse.status}`, 'error');
-            posts.value = [];
-          }
-        } else if (response.ok) {
-          const data = await response.json();
-          // 确保数据结构正确，从success和posts字段获取数据
-          if (data.success && Array.isArray(data.posts)) {
-            // 确保每个帖子都有comments数组，使用后端返回的数据或空数组
-            posts.value = data.posts.map((post: any) => ({ 
-              ...post, 
-              comments: Array.isArray(post.comments) ? post.comments : [] 
-            })); 
-          } else {
-            posts.value = [];
-          }
-        } else {
-          throw new Error('获取帖子列表失败');
-        }
-        
-        // 触发帖子加载完成事件
-        emit('posts-loaded', posts.value);
-      } catch (error) {
-        console.error('获取帖子列表错误:', error);
-      } finally {
-        isLoadingPosts.value = false;
-      }
+  isLoadingPosts.value = true;
+  
+  try {
+    // 获取存储的token
+    const token = localStorage.getItem('token');
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json'
     };
+    
+    // 如果有token，添加到请求头
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    // 根据communityType决定API路径
+    let apiPath = '/api/tiezi/';
+    if (props.communityType) {
+      apiPath = `/api/tiezi/${props.communityType}/`;
+    }
+    
+    // 添加redirect: 'manual'选项，防止自动跟随重定向到不存在的登录页面
+    const response = await fetch(`${baseURL}${apiPath}`, {
+      method: 'GET',
+      headers,
+      credentials: 'omit', // 不发送凭证，避免触发登录重定向
+      redirect: 'manual' // 手动处理重定向，不自动跟随
+    });
+    
+    // 处理302重定向响应
+    if (response.status === 302) {
+      // 不跟随重定向到不存在的登录页面
+      // 直接尝试使用GET请求获取帖子数据，不涉及认证
+      showNotification('尝试获取公开帖子数据', 'info');
+      const publicResponse = await fetch(`${baseURL}${apiPath}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'omit', // 确保不发送凭证
+        redirect: 'manual' // 同样设置为手动处理重定向
+      });
+      
+      // 检查第二个请求是否也返回302
+      if (publicResponse.status === 302) {
+        // 如果第二个请求也返回302，说明无法获取数据
+        showNotification('当前无法获取公开帖子数据，请稍后重试', 'error');
+        posts.value = [];
+      } else if (publicResponse.ok) {
+        const data = await publicResponse.json();
+        // 确保数据结构正确，从success和posts字段获取数据
+        if (data.success && Array.isArray(data.posts)) {
+          // 先保存帖子数据，不包含评论
+          const rawPosts = data.posts;
+          posts.value = rawPosts.map((post: any) => ({ 
+            ...post, 
+            comments: [] // 初始化为空数组，后续单独获取评论
+          }));
+          
+          // 为每个帖子获取评论
+          await fetchCommentsForAllPosts(); 
+        } else {
+          posts.value = [];
+        }
+      } else {
+        // 如果是其他错误状态码，给出提示但不抛出异常，避免重复请求
+        showNotification(`获取帖子列表失败: ${publicResponse.status}`, 'error');
+        posts.value = [];
+      }
+    } else if (response.ok) {
+      const data = await response.json();
+      // 确保数据结构正确，从success和posts字段获取数据
+      if (data.success && Array.isArray(data.posts)) {
+        // 先保存帖子数据，不包含评论
+        const rawPosts = data.posts;
+        posts.value = rawPosts.map((post: any) => ({ 
+          ...post, 
+          comments: [] // 初始化为空数组，后续单独获取评论
+        }));
+        
+        // 为每个帖子获取评论
+        await fetchCommentsForAllPosts();
+      } else {
+        posts.value = [];
+      }
+    } else {
+      throw new Error('获取帖子列表失败');
+    }
+    
+    // 触发帖子加载完成事件
+    emit('posts-loaded', posts.value);
+  } catch (error) {
+    console.error('获取帖子列表错误:', error);
+  } finally {
+    isLoadingPosts.value = false;
+  }
+};
 
 // 切换回复表单的显示状态
 const toggleReplyForm = (postId: number, commentId: number) => {
@@ -435,6 +564,19 @@ const toggleReplyForm = (postId: number, commentId: number) => {
     showCommentForms[postId] = false;
   }
 };
+
+// 切换精选帖子筛选
+const toggleFeaturedFilter = () => {
+  showFeaturedOnly.value = !showFeaturedOnly.value;
+};
+
+// 计算过滤后的帖子列表
+const filteredPosts = computed(() => {
+  if (!showFeaturedOnly.value) {
+    return posts.value;
+  }
+  return posts.value.filter(post => post.is_recommended);
+});
 
 
 // 显示通知消息
@@ -465,6 +607,128 @@ const cancelReply = (postId: number, commentId: number) => {
   const key = `${postId}-${commentId}`;
   showReplyForms[key] = false;
   replyForms[key] = '';
+};
+
+
+
+// 切换评论列表的折叠/展开状态
+const toggleComments = (postId: number) => {
+  collapsedComments[postId] = !collapsedComments[postId];
+};
+
+// 构建嵌套评论结构
+const buildNestedComments = (comments: any[]) => {
+  if (!comments || comments.length === 0) return [];
+  
+  const commentMap: Record<number, any> = {};
+  const topLevelComments: any[] = [];
+  
+  // 首先将所有评论放入map中
+  comments.forEach(comment => {
+    comment.replies = []; // 初始化回复数组
+    commentMap[comment.id] = comment;
+  });
+  
+  // 然后构建嵌套结构
+  comments.forEach(comment => {
+    if (comment.parent_id && commentMap[comment.parent_id]) {
+      // 这是一个回复，添加到父评论的replies数组中
+      commentMap[comment.parent_id].replies.push(comment);
+    } else {
+      // 这是一个顶层评论
+      topLevelComments.push(comment);
+    }
+  });
+  
+  return topLevelComments;
+};
+
+// 获取指定帖子的评论列表
+const fetchCommentsForPost = async (postId: number) => {
+  try {
+    // 保存当前的折叠状态
+    const savedCollapsedReplies = { ...collapsedReplies };
+    const savedCollapsedComments = collapsedComments[postId];
+    
+    const token = localStorage.getItem('token');
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json'
+    };
+    
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    const response = await fetch(`${baseURL}/api/posts/${postId}/comments/`, {
+      method: 'GET',
+      headers,
+      credentials: 'include'
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      
+      // 更新对应帖子的评论数据
+      const postIndex = posts.value.findIndex(p => p.id === postId);
+      if (postIndex !== -1) {
+        let comments = [];
+        if (Array.isArray(data)) {
+          comments = data;
+        } else if (data.success && Array.isArray(data.comments)) {
+          comments = data.comments;
+        }
+        
+        // 添加调试日志，查看评论数据结构
+        console.log(`帖子${postId}的评论数据结构:`, comments);
+        
+        // 处理扁平的评论数据，构建嵌套结构
+        const processedComments = buildNestedComments(comments);
+        
+        // 更新帖子的评论列表
+        posts.value[postIndex].comments = processedComments;
+        
+        // 恢复评论的折叠状态
+        if (savedCollapsedComments !== undefined) {
+          collapsedComments[postId] = savedCollapsedComments;
+        } else {
+          // 如果没有保存的状态，确保评论处于折叠状态
+          ensureCommentCollapsed(postId, comments.length > 0);
+        }
+        
+        // 为每个评论设置回复的折叠状态，保留之前的状态
+        comments.forEach(comment => {
+          if (comment.replies && comment.replies.length > 0) {
+            // 如果之前有保存的状态，使用保存的状态，否则默认折叠
+            if (savedCollapsedReplies[comment.id] !== undefined) {
+              collapsedReplies[comment.id] = savedCollapsedReplies[comment.id];
+            } else {
+              collapsedReplies[comment.id] = true; // 默认折叠
+            }
+          } else {
+            // 如果没有回复，不需要显示折叠按钮
+            delete collapsedReplies[comment.id];
+          }
+        });
+      }
+    }
+  } catch (error) {
+    console.error(`获取帖子 ${postId} 的评论失败:`, error);
+  }
+};
+
+// 为所有帖子获取评论
+const fetchCommentsForAllPosts = async () => {
+  // 使用Promise.all并行获取所有帖子的评论
+  await Promise.all(
+    posts.value.map(post => fetchCommentsForPost(post.id))
+  );
+  
+  // 为所有有评论的帖子设置默认折叠状态
+  posts.value.forEach(post => {
+    if (post.comments && post.comments.length > 0) {
+      collapsedComments[post.id] = true;
+    }
+  });
 };
 
 // 提交回复
@@ -517,6 +781,44 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.filter-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: white;
+  color: #409eff;
+  border: 1px solid #dcdfe6;
+  border-radius: 50px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.filter-button:hover {
+  border-color: #c6e2ff;
+  background: #ecf5ff;
+}
+
+.filter-button.active {
+  background: #409eff;
+  color: white;
+  border-color: #409eff;
+  box-shadow: 0 4px 15px rgba(64, 158, 255, 0.3);
+}
+
+.filter-button.active:hover {
+  background: #66b1ff;
+  border-color: #66b1ff;
 }
 
 .create-post-button {
@@ -668,11 +970,36 @@ onMounted(() => {
 .post-comments {
   border-top: 1px solid #eee;
   padding-top: 15px;
+  margin-top: 15px;
+}
+
+.comments-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
 }
 
 .post-comments h4 {
   margin-bottom: 10px;
   color: #333;
+  font-size: 16px;
+  margin: 0;
+}
+
+.toggle-comments-btn {
+  background-color: #f0f0f0;
+  color: #666;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.toggle-comments-btn:hover {
+  background-color: #e0e0e0;
 }
 
 .no-comments {
@@ -848,6 +1175,62 @@ onMounted(() => {
 .comment-btn:disabled {
   background-color: #a0cfff;
   cursor: not-allowed;
+}
+
+/* 回复列表样式 */
+.replies-list {
+  margin-left: 30px; /* 左侧缩进，显示层级关系 */
+  border-left: 2px solid #e8e8e8; /* 左侧边框，增强层级感 */
+  padding-left: 15px;
+  margin-top: 10px;
+}
+
+/* 回复评论样式 */
+.comment-item.reply {
+  margin-top: 10px;
+  padding: 10px;
+  background-color: #fafafa;
+  border-radius: 4px;
+}
+
+/* 回复评论的回复表单 */
+.comment-item.reply .reply-form {
+  margin-top: 10px;
+  margin-left: 0;
+}
+
+/* 回复表单样式 */
+.reply-form {
+  margin-top: 10px;
+  margin-left: 0;
+  padding: 15px;
+  background-color: #f9f9f9;
+  border-radius: 6px;
+  border: 1px solid #e0e0e0;
+}
+
+.reply-form textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  resize: vertical;
+  font-size: 14px;
+  line-height: 1.5;
+  transition: border-color 0.2s;
+}
+
+.reply-form textarea:focus {
+  outline: none;
+  border-color: #409eff;
+  box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.1);
+}
+
+.reply-form .comment-actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
 }
 
 /* 消息通知样式 */
