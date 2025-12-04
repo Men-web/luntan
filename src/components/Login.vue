@@ -99,11 +99,11 @@ const handleLogin = async () => {
     // 登录成功处理
     console.log('登录成功', data);
     
-    // 获取用户名
-    const username = data.username || loginForm.username;
+    // 获取用户名 - 从user对象中获取
+    const username = data.user?.username || loginForm.username;
     
-    // 获取token（如果没有返回token，使用空字符串或默认值）
-    const token = data.token || '';
+    // 获取token - 从user对象中获取（如果有的话）
+    const token = data.user?.token || '';
     
     console.log('登录成功 - 准备保存用户信息:', { username, token });
     

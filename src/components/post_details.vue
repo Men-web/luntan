@@ -25,13 +25,96 @@
     <div class="post-actions">
       <button class="back-button" @click="goBack">返回列表</button>
     </div>
+
+    <!-- 评论部分 -->
+    <section class="comments-section">
+      <h2 class="comments-title">评论 ({{ comments.length }})</h2>
+      <div v-if="isLoadingComments" class="loading">评论加载中...</div>
+      <div v-else-if="comments.length === 0" class="no-comments">暂无评论</div>
+      <div v-else class="comments-list">
+        <div v-for="comment in comments" :key="comment.id" class="comment-item">
+          <div class="comment-header">
+            <span class="comment-author">{{ comment.author }}</span>
+            <span class="comment-date">{{ comment.created_at }}</span>
+          </div>
+          <p class="comment-content">{{ comment.content }}</p>
+          <div class="comment-actions-area">
+            <div class="comment-stats">
+              <span class="like-count">👍 {{ comment.like_count }}</span>
+            </div>
+            <button 
+              v-if="isLoggedIn" 
+              @click="toggleReplyForm(comment.id)" 
+              class="reply-btn"
+            >
+              {{ showReplyForms[comment.id] ? '取消回复' : '回复' }}
+            </button>
+          </div>
+          
+          <!-- 回复表单 -->
+          <div v-if="showReplyForms[comment.id]" class="reply-form">
+            <textarea
+              v-model="replyForms[comment.id]"
+              placeholder="请输入回复内容"
+              class="form-control"
+              rows="2"
+            ></textarea>
+            <div class="comment-actions">
+              <button 
+                @click="cancelReply(comment.id)" 
+                class="cancel-btn"
+              >
+                取消
+              </button>
+              <button 
+                @click="submitReply(comment.id)" 
+                class="comment-btn"
+                :disabled="isSubmittingComment || !replyForms[comment.id]?.trim()"
+              >
+                {{ isSubmittingComment ? '回复中...' : '回复' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 发表评论表单 -->
+      <div class="add-comment-section">
+        <h3>发表评论</h3>
+        <div v-if="!isLoggedIn" class="login-prompt">请先登录后再发表评论</div>
+        <div v-else class="comment-form">
+          <textarea
+            v-model="newComment"
+            placeholder="请输入评论内容"
+            class="form-control"
+            rows="3"
+          ></textarea>
+          <div class="comment-actions">
+            <button 
+              @click="resetComment"
+              class="cancel-btn"
+            >
+              取消
+            </button>
+            <button 
+              @click="submitComment"
+              class="comment-btn"
+              :disabled="isSubmittingComment || !newComment?.trim()"
+            >
+              {{ isSubmittingComment ? '评论中...' : '发表评论' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { baseURL } from '../assets/url';
+import { useUserStore } from '../assets/stores';
 
 // 定义帖子数据类型
 interface Post {
@@ -44,11 +127,27 @@ interface Post {
   like_count: number;
   view_count: number;
   is_recommended: boolean;
+  community_type?: string;
+}
+
+// 定义评论数据类型
+interface Comment {
+  id: number;
+  author: string;
+  content: string;
+  created_at: string;
+  like_count: number;
+  parent_id?: number;
+  replies?: Comment[];
 }
 
 // 获取路由参数和路由实例
 const route = useRoute();
 const router = useRouter();
+
+// 使用用户store
+const userStore = useUserStore();
+const isLoggedIn = userStore.isLoggedIn;
 
 // 状态管理
 const post = ref<Post>({
@@ -64,6 +163,25 @@ const post = ref<Post>({
 });
 const isLoading = ref(true);
 const error = ref('');
+
+// 评论状态管理
+const comments = ref<Comment[]>([]);
+const isLoadingComments = ref(false);
+const newComment = ref('');
+const isSubmittingComment = ref(false);
+
+// 社区类型 - 从帖子数据中获取或默认设置
+const communityType = ref<string>('movie'); // 默认值设为'movie'，后续会从帖子数据中更新
+
+// 回复表单数据
+const replyForms = reactive<Record<number, string>>({});
+// 控制回复表单显示/隐藏的状态
+const showReplyForms = reactive<Record<number, boolean>>({});
+
+// 返回上一页
+const goBack = () => {
+  router.back();
+};
 
 // 获取帖子详情
 const fetchPostDetails = async () => {
@@ -96,6 +214,12 @@ const fetchPostDetails = async () => {
     
     if (data.success && data.post) {
       post.value = data.post;
+      // 从帖子数据中获取社区类型
+      if (data.post.community_type) {
+        communityType.value = data.post.community_type;
+      }
+      // 获取评论
+      await fetchComments();
     } else {
       throw new Error(data.message || '获取帖子详情失败');
     }
@@ -107,9 +231,159 @@ const fetchPostDetails = async () => {
   }
 };
 
-// 返回上一页
-const goBack = () => {
-  router.back();
+// 获取评论
+const fetchComments = async () => {
+  isLoadingComments.value = true;
+  
+  try {
+    const postId = post.value.id;
+    const token = localStorage.getItem('token');
+    
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json'
+    };
+    
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    const response = await fetch(`${baseURL}/api/posts/${postId}/comments/`, {
+      method: 'GET',
+      headers,
+      credentials: 'include'
+    });
+    
+    if (!response.ok) {
+      throw new Error('获取评论失败');
+    }
+    
+    const data = await response.json();
+    
+    if (Array.isArray(data)) {
+      comments.value = data;
+    } else if (data.success && Array.isArray(data.comments)) {
+      comments.value = data.comments;
+    } else {
+      comments.value = [];
+    }
+  } catch (err) {
+    console.error('获取评论错误:', err);
+    comments.value = [];
+  } finally {
+    isLoadingComments.value = false;
+  }
+};
+
+// 发表评论
+const submitComment = async () => {
+  if (!newComment.value?.trim() || !userStore.isLoggedIn) {
+    return;
+  }
+  
+  isSubmittingComment.value = true;
+  
+  try {
+    const postId = post.value.id;
+    const token = localStorage.getItem('token');
+    
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    };
+    
+    const response = await fetch(`${baseURL}/api/posts/${postId}/comments/add/`, {
+      method: 'POST',
+      headers,
+      credentials: 'include', // 发送凭证，确保用户身份正确识别
+      body: JSON.stringify({ content: newComment.value.trim() })
+    });
+    
+    if (!response.ok) {
+      throw new Error('发表评论失败');
+    }
+    
+    const data = await response.json();
+    
+    if (data.success || data.id) {
+      // 清空评论表单
+      newComment.value = '';
+      // 重新获取评论列表
+      await fetchComments();
+    } else {
+      throw new Error(data.message || '发表评论失败');
+    }
+  } catch (err) {
+    console.error('发表评论错误:', err);
+    error.value = '发表评论失败';
+  } finally {
+    isSubmittingComment.value = false;
+  }
+};
+
+// 重置评论表单
+const resetComment = () => {
+  newComment.value = '';
+};
+
+// 切换回复表单
+const toggleReplyForm = (commentId: number) => {
+  showReplyForms[commentId] = !showReplyForms[commentId];
+};
+
+// 提交回复
+const submitReply = async (parentId: number) => {
+  if (!replyForms[parentId]?.trim() || !userStore.isLoggedIn) {
+    return;
+  }
+  
+  isSubmittingComment.value = true;
+  
+  try {
+    const postId = post.value.id;
+    const token = localStorage.getItem('token');
+    
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    };
+    
+    const response = await fetch(`${baseURL}/api/tiezi/${postId}/comments/`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        content: replyForms[parentId].trim(),
+        parent_id: parentId
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error('发表回复失败');
+    }
+    
+    const data = await response.json();
+    
+    if (data.success || data.id) {
+      // 清空回复表单
+      replyForms[parentId] = '';
+      // 关闭回复表单
+      showReplyForms[parentId] = false;
+      // 重新获取评论列表
+      await fetchComments();
+    } else {
+      throw new Error(data.message || '发表回复失败');
+    }
+  } catch (err) {
+    console.error('发表回复错误:', err);
+    error.value = '发表回复失败';
+  } finally {
+    isSubmittingComment.value = false;
+  }
+};
+
+// 取消回复
+const cancelReply = (commentId: number) => {
+  showReplyForms[commentId] = false;
+  replyForms[commentId] = '';
 };
 
 // 组件挂载时获取帖子详情

@@ -10,7 +10,13 @@
     
     <!-- 帖子列表 -->
     <div class="posts-container">
-      <h2>{{ title || '帖子列表' }}</h2>
+      <div class="posts-header">
+        <h2>{{ title || '帖子列表' }}</h2>
+        <button v-if="userStore.isLoggedIn" @click="goToCreatePost" class="create-post-button">
+          <span class="button-icon">+</span>
+          <span class="button-text">发帖</span>
+        </button>
+      </div>
       <div v-if="isLoadingPosts" class="loading">加载中...</div>
       <div v-else-if="posts.length === 0" class="no-posts">暂无帖子</div>
       <div v-else class="posts-list">
@@ -206,6 +212,11 @@ const goToPostDetail = (postId: number) => {
   router.push(`/post/${postId}`);
 };
 
+// 跳转到创建帖子页面
+const goToCreatePost = () => {
+  router.push('/createPost');
+};
+
 // 提交评论或回复
 const submitComment = async (postId: number, parentId?: number) => {
   isSubmittingComment.value = true;
@@ -260,11 +271,11 @@ const submitComment = async (postId: number, parentId?: number) => {
     }
     
     // 使用正确的API路径，与后端保持一致
-    const response = await fetch(`${baseURL}/posts/${postId}/comments/`, {
+    // 使用与帖子API一致的路径结构
+    const response = await fetch(`${baseURL}/api/posts/${postId}/comments/add/`, {
       method: 'POST',
       headers,
-      credentials: 'omit', // 不发送凭证，避免触发登录重定向
-      redirect: 'manual', // 手动处理重定向，不自动跟随
+      credentials: 'include', // 发送凭证，确保用户身份正确识别
       body: JSON.stringify(requestData)
     });
     
@@ -370,13 +381,13 @@ const fetchPosts = async () => {
           } else if (publicResponse.ok) {
             const data = await publicResponse.json();
             // 确保数据结构正确，从success和posts字段获取数据
-            if (data.success && Array.isArray(data.posts)) {
-              // 为每个帖子添加空comments数组，确保模板正常显示
-              posts.value = data.posts.map((post: any) => ({
-                ...post,
-                comments: []
-              }));
-            } else {
+          if (data.success && Array.isArray(data.posts)) {
+            // 确保每个帖子都有comments数组，使用后端返回的数据或空数组
+            posts.value = data.posts.map((post: any) => ({ 
+              ...post, 
+              comments: Array.isArray(post.comments) ? post.comments : [] 
+            })); 
+          } else {
               posts.value = [];
             }
           } else {
@@ -388,11 +399,11 @@ const fetchPosts = async () => {
           const data = await response.json();
           // 确保数据结构正确，从success和posts字段获取数据
           if (data.success && Array.isArray(data.posts)) {
-            // 为每个帖子添加空comments数组，确保模板正常显示
-            posts.value = data.posts.map((post: any) => ({
-              ...post,
-              comments: []
-            }));
+            // 确保每个帖子都有comments数组，使用后端返回的数据或空数组
+            posts.value = data.posts.map((post: any) => ({ 
+              ...post, 
+              comments: Array.isArray(post.comments) ? post.comments : [] 
+            })); 
           } else {
             posts.value = [];
           }
@@ -499,6 +510,49 @@ onMounted(() => {
   padding: 20px;
   border-radius: 8px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+}
+
+.posts-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.create-post-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: linear-gradient(135deg, #409eff, #66b1ff);
+  color: white;
+  border: none;
+  border-radius: 50px;
+  padding: 12px 20px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(64, 158, 255, 0.4);
+  transition: all 0.3s ease;
+}
+
+.create-post-button:hover {
+  background: linear-gradient(135deg, #66b1ff, #409eff);
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(64, 158, 255, 0.6);
+}
+
+.create-post-button:active {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 10px rgba(64, 158, 255, 0.6);
+}
+
+.button-icon {
+  font-size: 18px;
+}
+
+.button-text {
+  font-size: 14px;
 }
 
 .posts-container h2 {

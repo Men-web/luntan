@@ -65,9 +65,9 @@ export const useUserStore = defineStore('user', {
         localStorage.setItem(STORAGE_KEYS.TOKEN, newToken)
         console.log('setUserInfo - 保存token到localStorage: 有值');
       } else {
-        // 空token时仍然保存空字符串，而不是移除，避免状态不一致
-        localStorage.setItem(STORAGE_KEYS.TOKEN, '')
-        console.log('setUserInfo - 保存空token到localStorage');
+        // 空token时移除localStorage中的token，避免保存空字符串
+        localStorage.removeItem(STORAGE_KEYS.TOKEN)
+        console.log('setUserInfo - 清除token从localStorage');
       }
     },
     
@@ -143,10 +143,14 @@ export const useUserStore = defineStore('user', {
         
         
         
-        // 处理用户名 - 更健壮的逻辑，避免意外清除
+        // 处理用户名 - 更健壮的逻辑，确保状态一致
         if (storedUsername === null) {
-          // localStorage中没有用户名，但store中有，保持store中的值
-          console.log('syncUserStatus - localStorage中没有username，保持store当前值');
+          // localStorage中没有用户名，清除store中的用户信息
+          if (this.username || this.token) {
+            this.username = ''
+            this.token = ''
+            console.log('syncUserStatus - localStorage中没有username，清除store中的用户信息');
+          }
         } else {
           // localStorage中有用户名，更新到store
           if (this.username !== storedUsername) {
