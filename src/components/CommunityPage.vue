@@ -1,36 +1,7 @@
 <template>
   <div class="app-wrapper">
-    <!-- 头部导航栏 -->
-    <header class="header-nav">
-      <nav class="nav-container">
-        <div class="nav-left">
-          <ul class="nav-links">
-            <li>
-              <router-link to="/" class="nav-link">首页</router-link>
-            </li>
-            <li>
-              <router-link to="/bookCommunity" class="nav-link">书籍</router-link>
-            </li>
-            <li>
-              <router-link to="/movieCommunity" class="nav-link">电影</router-link>
-            </li>
-            <li>
-              <router-link to="/daliy_life" class="nav-link">生活树洞</router-link>
-            </li>
-            <li>
-              <router-link to="/myselfCommunity" class="nav-link">我的空间</router-link>
-            </li>
-          </ul>
-        </div>
-        <div class="nav-right">
-          <div class="user-status">
-            {{ userStore.isLoggedIn ? `欢迎你，${userStore.username}` : '未登录' }}
-          </div>
-          <button class="login-button" @click="goToLogin" v-if="!userStore.isLoggedIn">登录</button>
-          <button class="logout-button" @click="handleLogout" v-if="userStore.isLoggedIn">退出登录</button>
-        </div>
-      </nav>
-    </header>
+    <!-- 头部导航栏 - 使用统一的Navbar组件 -->
+    <Navbar />
 
     <!-- 主内容区域 -->
     <main class="main-content">
@@ -97,6 +68,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { baseURL } from '../assets/url';
 import { useUserStore } from '../assets/stores';
 import CommunityBase from './CommunityBase.vue';
+import Navbar from './Navbar.vue';
 
 const router = useRouter();
 const route = useRoute();
@@ -240,117 +212,7 @@ onMounted(() => {
   overflow: hidden;
 }
 
-/* 头部导航栏样式 */
-.header-nav {
-  background-color: #ffffff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  position: relative;
-  z-index: 100;
-}
 
-.nav-container {
-  max-width: 100%;
-  height: 60px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 20px;
-}
-
-.nav-left {
-  display: flex;
-  align-items: center;
-}
-
-.nav-links {
-  display: flex;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.nav-links li {
-  margin-right: 30px;
-}
-
-.nav-link {
-  color: #333;
-  text-decoration: none;
-  font-size: 16px;
-  font-weight: 500;
-  padding: 8px 0;
-  transition: color 0.3s;
-  position: relative;
-}
-
-.nav-link:hover {
-  color: #409eff;
-}
-
-.nav-link.router-link-active {
-  color: #409eff;
-}
-
-.nav-link.router-link-active::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  height: 2px;
-  background-color: #409eff;
-}
-
-.nav-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.user-status {
-  color: #333;
-  font-size: 14px;
-  margin-right: 10px;
-  white-space: nowrap;
-}
-
-.login-button {
-  background-color: #409eff;
-  color: white;
-  border: none;
-  padding: 8px 20px;
-  font-size: 14px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background-color 0.3s;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.login-button:hover {
-  background-color: #66b1ff;
-}
-
-.login-button:active {
-  background-color: #3a8ee6;
-}
-
-.logout-button {
-  background-color: #f44336;
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: background-color 0.3s;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.logout-button:hover {
-  background-color: #d32f2f;
-}
 
 /* 主内容区域样式 */
 .main-content {

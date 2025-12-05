@@ -5,6 +5,7 @@ import './style.css'
 import App from './App.vue'
 import MainPage from './components/mainPage.vue'
 import Login from './components/Login.vue'
+import Register from './components/Register.vue'
 import CommunityPage from './components/CommunityPage.vue'
 import MyselfCommunity from './components/myselfCommunity.vue'
 import create_post from './components/create_post.vue'
@@ -25,6 +26,11 @@ const router = createRouter({
       path: '/login',
       name: 'Login',
       component: Login
+    },
+    {
+      path: '/register',
+      name: 'Register',
+      component: Register
     },
     {
       path: '/bookCommunity',

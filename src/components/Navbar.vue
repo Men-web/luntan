@@ -24,7 +24,10 @@
         <div class="user-status">
           {{ userStore.isLoggedIn ? `欢迎你，${userStore.username}` : '未登录' }}
         </div>
-        <button class="login-button" @click="goToLogin" v-if="!userStore.isLoggedIn">登录</button>
+        <div class="auth-buttons" v-if="!userStore.isLoggedIn">
+          <button class="login-button" @click="goToLogin">登录</button>
+          <button class="register-button" @click="goToRegister">注册</button>
+        </div>
         <button class="logout-button" @click="handleLogout" v-if="userStore.isLoggedIn">退出登录</button>
       </div>
     </nav>
@@ -33,11 +36,17 @@
 
 <script setup lang="ts">
 import { useRouter } from 'vue-router';
+import { onMounted } from 'vue';
 import { baseURL } from '../assets/url';
 import { useUserStore } from '../assets/stores';
 
 const router = useRouter();
 const userStore = useUserStore();
+
+// 组件挂载时主动加载用户状态，确保登录/注册按钮显示逻辑一致
+onMounted(() => {
+  userStore.loadUserFromStorage();
+});
 
 // 跳转到登录页面
 const goToLogin = () => {
@@ -45,6 +54,15 @@ const goToLogin = () => {
     alert('您已经登录了');
   } else {
     router.push('/login');
+  }
+};
+
+// 跳转到注册页面
+const goToRegister = () => {
+  if (userStore.isLoggedIn) {
+    alert('您已经登录了');
+  } else {
+    router.push('/register');
   }
 };
 
@@ -170,6 +188,11 @@ const handleLogout = async () => {
   margin-right: 10px;
 }
 
+.auth-buttons {
+  display: flex;
+  gap: 10px;
+}
+
 .login-button {
   background-color: #409eff;
   color: white;
@@ -181,6 +204,27 @@ const handleLogout = async () => {
   transition: background-color 0.3s;
   white-space: nowrap;
   flex-shrink: 0;
+}
+
+.register-button {
+  background-color: #67c23a;
+  color: white;
+  border: none;
+  padding: 8px 20px;
+  font-size: 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.register-button:hover {
+  background-color: #85ce61;
+}
+
+.register-button:active {
+  background-color: #5daf34;
 }
 
 .login-button:hover {
