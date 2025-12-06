@@ -209,6 +209,17 @@
 </template>
 
 <script setup lang="ts">
+// 定义评论数据类型
+interface Comment {
+  id: number;
+  author: string | { username: string };
+  content: string;
+  created_at: string;
+  like_count: number;
+  parent_id?: number;
+  replies?: Comment[];
+  is_featured?: boolean;
+}
 import { ref, reactive, onMounted, onUnmounted, watch, computed, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import { baseURL } from '../assets/url';
@@ -425,7 +436,7 @@ const submitComment = async (postId: number, parentId?: number) => {
       const postIndex = posts.value.findIndex(p => p.id === postId);
       if (postIndex !== -1) {
         // 查找父评论
-        const parentCommentIndex = posts.value[postIndex].comments.findIndex(c => c.id === parentId);
+    const parentCommentIndex = posts.value[postIndex].comments.findIndex((c: Comment) => c.id === parentId);
         if (parentCommentIndex !== -1) {
           // 确保父评论有replies数组
           if (!posts.value[postIndex].comments[parentCommentIndex].replies) {
@@ -696,11 +707,11 @@ const fetchCommentsForPost = async (postId: number) => {
         }
         
         // 为每个评论设置回复的折叠状态，保留之前的状态
-        comments.forEach(comment => {
+        comments.forEach((comment: Comment) => {
           if (comment.replies && comment.replies.length > 0) {
             // 如果之前有保存的状态，使用保存的状态，否则默认折叠
             if (savedCollapsedReplies[comment.id] !== undefined) {
-              collapsedReplies[comment.id] = savedCollapsedReplies[comment.id];
+              collapsedReplies[comment.id] = savedCollapsedReplies[comment.id] !== undefined ? savedCollapsedReplies[comment.id]! : true;
             } else {
               collapsedReplies[comment.id] = true; // 默认折叠
             }

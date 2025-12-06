@@ -44,7 +44,7 @@
         <!-- 渲染顶层评论 -->
         <div v-for="comment in comments" :key="comment.id" class="comment-item">
           <div class="comment-header">
-            <span class="comment-author">{{ comment.author.username || comment.author }}</span>
+            <span class="comment-author">{{ typeof comment.author === 'object' ? comment.author.username : comment.author }}</span>
             <span class="comment-date">{{ comment.created_at }}</span>
             <button 
               v-if="isLoggedIn" 
@@ -100,7 +100,7 @@
             <div v-if="!collapsedReplies[comment.id]" class="replies-list">
               <div v-for="reply in comment.replies" :key="reply.id" class="comment-item reply">
                 <div class="comment-header">
-                  <span class="comment-author">{{ reply.author.username || reply.author }}</span>
+                  <span class="comment-author">{{  reply.author }}</span>
                   <span class="comment-date">{{ reply.created_at }}</span>
                   <button 
                     v-if="isLoggedIn" 
@@ -202,7 +202,7 @@ interface Post {
 // 定义评论数据类型
 interface Comment {
   id: number;
-  author: string;
+  author: string | { username: string };
   content: string;
   created_at: string;
   like_count: number;
@@ -246,9 +246,9 @@ const collapsedReplies = ref<Record<number, boolean>>({}); // 使用评论ID作�
 const communityType = ref<string>('movie'); // 默认值设为'movie'，后续会从帖子数据中更新
 
 // 回复表单数据
-const replyForms = reactive<Record<number, string>>({});
+const replyForms = reactive<Record<string | number, string>>({});
 // 控制回复表单显示/隐藏的状态
-const showReplyForms = reactive<Record<number, boolean>>({});
+const showReplyForms = reactive<Record<string | number, boolean>>({});
 
 // 返回上一页
 const goBack = () => {
@@ -304,11 +304,11 @@ const fetchPostDetails = async () => {
 };
 
 // 构建嵌套评论结构
-const buildNestedComments = (comments: any[]) => {
+const buildNestedComments = (comments: Comment[]) => {
   if (!comments || comments.length === 0) return [];
   
-  const commentMap: Record<number, any> = {};
-  const topLevelComments: any[] = [];
+  const commentMap: Record<number, Comment> = {};
+  const topLevelComments: Comment[] = [];
   
   // 首先将所有评论放入map中
   comments.forEach(comment => {
@@ -320,7 +320,10 @@ const buildNestedComments = (comments: any[]) => {
   comments.forEach(comment => {
     if (comment.parent_id && commentMap[comment.parent_id]) {
       // 这是一个回复，添加到父评论的replies数组中
-      commentMap[comment.parent_id].replies.push(comment);
+      const parentComment = commentMap[comment.parent_id];
+      if (parentComment && parentComment.replies) {
+        parentComment.replies.push(comment);
+      }
     } else {
       // 这是一个顶层评论
       topLevelComments.push(comment);
@@ -379,10 +382,10 @@ const fetchComments = async () => {
     collapsedComments.value = savedCollapsedComments;
     
     // 设置每个评论的回复折叠状态，保留之前的状态
-    commentsData.forEach(comment => {
+    commentsData.forEach((comment: Comment) => {
       if (comment.replies && comment.replies.length > 0) {
         // 如果之前有保存的状态，使用保存的状态，否则默认折叠
-        collapsedReplies.value[comment.id] = savedCollapsedReplies[comment.id] !== undefined ? savedCollapsedReplies[comment.id] : true;
+        collapsedReplies.value[comment.id] = savedCollapsedReplies[comment.id] !== undefined ? savedCollapsedReplies[comment.id]! : true;
       }
     });
     
@@ -495,13 +498,14 @@ const submitReply = async (parentId: number) => {
       if (data.new_comment) {
         // 查找父评论
         const parentCommentIndex = comments.value.findIndex(c => c.id === parentId);
-        if (parentCommentIndex !== -1) {
+        if (parentCommentIndex !== -1 && comments.value[parentCommentIndex]) {
           // 确保父评论有replies数组
-          if (!comments.value[parentCommentIndex].replies) {
-            comments.value[parentCommentIndex].replies = [];
+          const parentComment = comments.value[parentCommentIndex];
+          if (!parentComment.replies) {
+            parentComment.replies = [];
           }
           // 将新回复添加到父评论的replies数组中
-          comments.value[parentCommentIndex].replies.push(data.new_comment);
+          parentComment.replies.push(data.new_comment);
           // 自动展开该评论的回复
           collapsedReplies.value[parentId] = false;
         }
@@ -520,7 +524,7 @@ const submitReply = async (parentId: number) => {
   }
 };
 
-// 取消回复
+// 重置回复表单
 const cancelReply = (commentId: number) => {
   showReplyForms[commentId] = false;
   replyForms[commentId] = '';

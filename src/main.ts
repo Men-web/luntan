@@ -5,11 +5,14 @@ import './style.css'
 import App from './App.vue'
 import MainPage from './components/mainPage.vue'
 import Login from './components/Login.vue'
-import Register from './components/Register.vue'
-import CommunityPage from './components/CommunityPage.vue'
+import Register from './components/register.vue'
+import BookCommunity from './components/bookCommunity.vue'
+import MovieCommunity from './components/movieCommunity.vue'
+
 import MyselfCommunity from './components/myselfCommunity.vue'
 import create_post from './components/create_post.vue'
 import post_details from './components/post_details.vue'
+import LifeCommunity from './components/lifeCommunity.vue'
 import { useUserStore } from './assets/stores'
 import { baseURL } from './assets/url'
 
@@ -17,7 +20,7 @@ import { baseURL } from './assets/url'
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    {
+{
       path: '/',
       name: 'MainPage',
       component: MainPage
@@ -35,16 +38,16 @@ const router = createRouter({
     {
       path: '/bookCommunity',
       name: 'BookCommunity',
-      component: CommunityPage
+      component: BookCommunity
     },
     {
       path: '/movieCommunity',
       name: 'MovieCommunity',
-      component: CommunityPage
+      component: MovieCommunity
     },
     {
-      path: '/myselfCommunity',
-      name: 'MyselfCommunity',
+      path: '/daliy_life',
+      name: 'DaliyLife',
       component: MyselfCommunity
     },
     {
@@ -53,9 +56,9 @@ const router = createRouter({
       component: create_post
     },
     {
-      path: '/daliy_life',
-      name: 'DaliyLife',
-      component: CommunityPage
+      path: '/myselfCommunity',
+      name: 'MyselfCommunity',
+      component: LifeCommunity
     },
     {
       path: '/post/:postId',

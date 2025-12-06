@@ -13,10 +13,10 @@
             <router-link to="/movieCommunity" class="nav-link">电影</router-link>
           </li>
           <li>
-            <router-link to="/daliy_life" class="nav-link">生活树洞</router-link>
+            <router-link to="/myselfCommunity" class="nav-link">生活树洞</router-link>
           </li>
           <li>
-            <router-link to="/myselfCommunity" class="nav-link">我的空间</router-link>
+            <router-link to="/daliy_life" class="nav-link">我的空间</router-link>
           </li>
         </ul>
       </div>

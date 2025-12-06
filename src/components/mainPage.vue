@@ -7,7 +7,7 @@
     <!-- 主内容区域 -->
     <main class="main-content">
       <div class="content-wrapper">
-        <h1>欢迎来到千龙系统</h1>
+        <h1>潜龙推荐</h1>
         <p>这是系统的首页，请通过上方导航栏访问各个社区</p>
       </div>
     </main>
