@@ -69,14 +69,12 @@ const goToRegister = () => {
 // 处理退出登录
 const handleLogout = async () => {
   try {
-    const token = localStorage.getItem('token');
-    // 调用后端退出登录接口
+    // 调用后端退出登录接口，使用session cookie认证
     await fetch(`${baseURL}/api/user/logout/`, {
       method: 'POST',
-      credentials: 'omit', // 不发送凭证，避免触发登录重定向
+      credentials: 'include', // 必须包含凭证，发送session cookie
       redirect: 'manual', // 手动处理重定向
       headers: {
-        'Authorization': `Bearer ${token as string}`,
         'Content-Type': 'application/json'
       }
     });
@@ -84,12 +82,11 @@ const handleLogout = async () => {
     console.error('退出登录请求失败:', error);
   } finally {
     // 无论后端请求是否成功，都清除本地存储和Pinia store
-    localStorage.removeItem('token');
     localStorage.removeItem('username');
     // 清除Pinia store中的用户状态
     userStore.clearUserInfo();
     
-    // 清除所有cookie
+    // 清除所有cookie（特别是session cookie）
     document.cookie.split(';').forEach(cookie => {
       if (!cookie) return;
       const eqPos = cookie.indexOf('=');

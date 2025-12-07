@@ -10,7 +10,6 @@ interface Draft {
 // localStorage键名常量
 const STORAGE_KEYS = {
   USERNAME: 'username',
-  TOKEN: 'token',
   POST_DRAFT: 'post_draft'
 } as const
 
@@ -18,10 +17,8 @@ const STORAGE_KEYS = {
 export const useUserStore = defineStore('user', {
   // 状态定义
   state: () => ({
-    // 全局用户名字段
-    username: localStorage.getItem(STORAGE_KEYS.USERNAME) || '',
-    // 全局token字段
-    token: localStorage.getItem(STORAGE_KEYS.TOKEN) || ''
+    // 全局用户名字段 - 初始化时直接从localStorage读取，避免页面刷新时丢失
+    username: localStorage.getItem(STORAGE_KEYS.USERNAME) || ''
   }),
   
   // Getters用于获取状态
@@ -31,10 +28,7 @@ export const useUserStore = defineStore('user', {
       return this.username
     },
     
-    // 获取token
-    getToken(): string {
-      return this.token
-    },
+    
     
     // 判断用户是否已登录 - 修改为只检查用户名，因为后端可能不返回token
     // 登录成功后只要有用户名就认为已登录
@@ -46,49 +40,40 @@ export const useUserStore = defineStore('user', {
   // Actions用于修改状态
   actions: {
     // 设置用户信息（登录）
-    setUserInfo(newUsername: string, newToken: string) {
-      console.log('setUserInfo调用:', { newUsername, newToken });
+    setUserInfo(newUsername: string) {
+      console.log('🔑 setUserInfo调用:', { newUsername, currentUsername: this.username });
       
       this.username = newUsername
-      this.token = newToken
       
-      // 保存到localStorage以持久化 - 添加空值检查
+      // 保存用户名到localStorage
       if (newUsername) {
         localStorage.setItem(STORAGE_KEYS.USERNAME, newUsername)
-        console.log('setUserInfo - 保存username到localStorage:', newUsername);
+        console.log('💾 setUserInfo - 保存username到localStorage:', newUsername);
       } else {
         localStorage.removeItem(STORAGE_KEYS.USERNAME)
-        console.log('setUserInfo - 清除username从localStorage');
-      }
-      
-      if (newToken) {
-        localStorage.setItem(STORAGE_KEYS.TOKEN, newToken)
-        console.log('setUserInfo - 保存token到localStorage: 有值');
-      } else {
-        // 空token时移除localStorage中的token，避免保存空字符串
-        localStorage.removeItem(STORAGE_KEYS.TOKEN)
-        console.log('setUserInfo - 清除token从localStorage');
+        console.log('🗑️ setUserInfo - 清除username从localStorage');
       }
     },
     
     // 设置用户名
     setUsername(newUsername: string) {
+      console.log('🔐 setUsername调用:', { newUsername, currentUsername: this.username });
       this.username = newUsername
       // 保存到localStorage以持久化
       if (newUsername) {
         localStorage.setItem(STORAGE_KEYS.USERNAME, newUsername)
+        console.log('💾 setUsername - 保存到localStorage:', newUsername);
       } else {
         localStorage.removeItem(STORAGE_KEYS.USERNAME)
+        console.log('🗑️ setUsername - 从localStorage清除');
       }
     },
     
     // 清除用户信息（登出）
     clearUserInfo() {
       this.username = ''
-      this.token = ''
       // 清除localStorage中的用户信息
       localStorage.removeItem(STORAGE_KEYS.USERNAME)
-      localStorage.removeItem(STORAGE_KEYS.TOKEN)
     },
     
     // 更新用户名
@@ -106,13 +91,16 @@ export const useUserStore = defineStore('user', {
     // 从localStorage加载完整用户状态
     loadUserFromStorage() {
       const storedUsername = localStorage.getItem(STORAGE_KEYS.USERNAME)
-      const storedToken = localStorage.getItem(STORAGE_KEYS.TOKEN)
       
+      console.log('loadUserFromStorage调用:', { storedUsername });
+      
+      // 只在localStorage中有值时才更新store，避免覆盖store中最新的状态
       if (storedUsername) {
         this.username = storedUsername
-      }
-      if (storedToken) {
-        this.token = storedToken
+        console.log('loadUserFromStorage - 从localStorage更新username:', storedUsername);
+      } else {
+        // localStorage中没有用户名，保持store当前值
+        console.log('loadUserFromStorage - localStorage中没有username，保持store当前值:', this.username);
       }
     },
     
@@ -125,50 +113,27 @@ export const useUserStore = defineStore('user', {
         
         // 从localStorage获取最新的用户状态
         const storedUsername = localStorage.getItem(STORAGE_KEYS.USERNAME)
-        const storedToken = localStorage.getItem(STORAGE_KEYS.TOKEN)
         
         // 记录同步前的状态
         const previousStatus = {
           username: this.username,
-          token: this.token,
           isLoggedIn: this.isLoggedIn
         };
         
         console.log('syncUserStatus调用来源:', callerInfo);
         console.log('syncUserStatus - 同步前状态:', previousStatus);
-        console.log('syncUserStatus - localStorage读取值:', { storedUsername, storedToken });
-        //   username: this.username,
-        //   isLoggedIn: this.isLoggedIn
-        // }
+        console.log('syncUserStatus - localStorage读取值:', { storedUsername });
         
-        
-        
-        // 处理用户名 - 更健壮的逻辑，确保状态一致
-        if (storedUsername === null) {
-          // localStorage中没有用户名，清除store中的用户信息
-          if (this.username || this.token) {
-            this.username = ''
-            this.token = ''
-            console.log('syncUserStatus - localStorage中没有username，清除store中的用户信息');
-          }
-        } else {
+        // 处理用户名 - 正确的同步逻辑：从localStorage读取值更新store，而不是在localStorage没有值时清除store
+        if (storedUsername !== null) {
           // localStorage中有用户名，更新到store
           if (this.username !== storedUsername) {
             this.username = storedUsername
             console.log('syncUserStatus - 从localStorage更新username:', storedUsername);
           }
-        }
-        
-        // 处理token - 类似的健壮逻辑
-        if (storedToken === null) {
-          // localStorage中没有token，但store中有，保持store中的值
-          console.log('syncUserStatus - localStorage中没有token，保持store当前值');
         } else {
-          // localStorage中有token，更新到store
-          if (this.token !== storedToken) {
-            this.token = storedToken
-            console.log('syncUserStatus - 从localStorage更新token');
-          }
+          // localStorage中没有用户名，保持store当前值（避免导航栏切换时丢失登录状态）
+          console.log('syncUserStatus - localStorage中没有username，保持store当前值');
         }
         
         // 记录状态变更信息，便于调试
@@ -176,13 +141,6 @@ export const useUserStore = defineStore('user', {
           console.log('用户名状态发生变化:', { 
             previous: previousStatus.username, 
             current: this.username 
-          })
-        }
-        
-        if (previousStatus.token !== this.token) {
-          console.log('Token状态发生变化:', { 
-            previous: previousStatus.token ? '有值' : '无值', 
-            current: this.token ? '有值' : '无值' 
           })
         }
         
@@ -195,7 +153,6 @@ export const useUserStore = defineStore('user', {
         
         console.log('同步用户状态完成:', { 
           username: this.username, 
-          token: this.token ? '有值' : '无值',
           isLoggedIn: this.isLoggedIn 
         })
       } catch (error) {

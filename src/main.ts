@@ -13,6 +13,9 @@ import MyselfCommunity from './components/myselfCommunity.vue'
 import create_post from './components/create_post.vue'
 import post_details from './components/post_details.vue'
 import LifeCommunity from './components/lifeCommunity.vue'
+import ProfileEdit from './components/ProfileEdit.vue'
+import UserPosts from './components/UserPosts.vue'
+import UserComments from './components/UserComments.vue'
 import { useUserStore } from './assets/stores'
 import { baseURL } from './assets/url'
 
@@ -64,6 +67,21 @@ const router = createRouter({
       path: '/post/:postId',
       name: 'PostDetails',
       component: post_details
+    },
+    {
+      path: '/profile/edit',
+      name: 'ProfileEdit',
+      component: ProfileEdit
+    },
+    {
+      path: '/user/posts',
+      name: 'UserPosts',
+      component: UserPosts
+    },
+    {
+      path: '/user/comments',
+      name: 'UserComments',
+      component: UserComments
     }
   ]
 })

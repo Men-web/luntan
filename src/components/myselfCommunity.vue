@@ -12,157 +12,79 @@
             <h2>我的空间</h2>
             <p>管理您的个人信息和活动</p>
           </div>
+          
+          <!-- 用户信息展示 -->
+          <div class="user-profile-card">
+            <div class="profile-header">
+              <h3>用户信息</h3>
+            </div>
+            <div class="profile-content">
+              <div class="profile-info">
+                <div class="info-item">
+                  <label>用户名：</label>
+                  <span>{{ userInfo.username }}</span>
+                </div>
+                <div class="info-item">
+                  <label>昵称：</label>
+                  <span>{{ userInfo.nick_name || '未设置' }}</span>
+                </div>
+                <div class="info-item">
+                  <label>邮箱：</label>
+                  <span>{{ userInfo.email || '未设置' }}</span>
+                </div>
+                <div class="info-item">
+                  <label>性别：</label>
+                  <span>{{ userInfo.gender_display || '未设置' }}</span>
+                </div>
+                <div class="info-item">
+                  <label>出生日期：</label>
+                  <span>{{ userInfo.birth_date || '未设置' }}</span>
+                </div>
+                <div class="info-item">
+                  <label>城市：</label>
+                  <span>{{ userInfo.city || '未设置' }}</span>
+                </div>
+                <div class="info-item">
+                  <label>专业：</label>
+                  <span>{{ userInfo.major || '未设置' }}</span>
+                </div>
+                <div class="info-item">
+                  <label>GitHub：</label>
+                  <span v-if="userInfo.github"><a :href="userInfo.github" target="_blank">{{ userInfo.github }}</a></span>
+                  <span v-else>未设置</span>
+                </div>
+                <div class="info-item full-width">
+                  <label>个人简介：</label>
+                  <p>{{ userInfo.bio || '未设置' }}</p>
+                </div>
+                <div class="info-item full-width">
+                  <label>个性签名：</label>
+                  <p>{{ userInfo.signature || '未设置' }}</p>
+                </div>
+                <div class="info-item full-width">
+                  <label>兴趣爱好：</label>
+                  <p>{{ userInfo.interests || '未设置' }}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          
           <div class="personal-stats">
-              <div class="stat-item">
-                <span class="stat-number">0</span>
+              <button class="stat-item" @click="navigateToPosts">
                 <span class="stat-label">我的帖子</span>
-              </div>
-              <div class="stat-item">
-                <span class="stat-number">0</span>
+              </button>
+              <button class="stat-item" @click="navigateToComments">
                 <span class="stat-label">我的评论</span>
-              </div>
-              <div class="stat-item">
-                <span class="stat-number">0</span>
-                <span class="stat-label">获赞总数</span>
-              </div>
+              </button>
+            </div>
+
+            <!-- 个人信息编辑按钮 -->
+            <div class="profile-actions">
+              <button class="btn-edit-profile" @click="navigateToEdit">
+                ✏️ 编辑个人信息
+              </button>
             </div>
         </div>
-
-        <!-- 个人信息管理 -->
-        <section class="profile-section">
-          <h2>👤 个人信息管理</h2>
-          <form class="profile-form" @submit.prevent="saveProfile">
-            <div class="form-grid">
-              <!-- 基本信息 -->
-              <div class="form-group">
-                <label for="username">用户名 <span class="required">*</span></label>
-                <input 
-                  type="text" 
-                  id="username" 
-                  v-model="userInfo.username"
-                  placeholder="请输入用户名"
-                  required
-                />
-                <div v-if="errors.username" class="error-message">{{ errors.username }}</div>
-              </div>
-
-              <div class="form-group">
-                <label for="nick_name">昵称</label>
-                <input 
-                  type="text" 
-                  id="nick_name" 
-                  v-model="userInfo.nick_name"
-                  placeholder="请输入昵称"
-                />
-              </div>
-
-              <div class="form-group">
-                <label for="phone">手机号码</label>
-                <input 
-                  type="tel" 
-                  id="phone" 
-                  v-model="userInfo.phone"
-                  placeholder="请输入手机号码"
-                  pattern="^1[3-9]\d{9}$"
-                />
-                <div v-if="errors.phone" class="error-message">{{ errors.phone }}</div>
-              </div>
-
-              <div class="form-group">
-                <label for="gender">性别</label>
-                <select id="gender" v-model="userInfo.gender">
-                  <option value="">保密</option>
-                  <option value="M">男</option>
-                  <option value="F">女</option>
-                  <option value="O">其他</option>
-                </select>
-              </div>
-
-              <div class="form-group">
-                <label for="birth_date">出生日期</label>
-                <input 
-                  type="date" 
-                  id="birth_date" 
-                  v-model="userInfo.birth_date"
-                />
-              </div>
-
-              <div class="form-group">
-                <label for="city">城市</label>
-                <input 
-                  type="text" 
-                  id="city" 
-                  v-model="userInfo.city"
-                  placeholder="请输入所在城市"
-                />
-              </div>
-
-              <div class="form-group">
-                <label for="major">专业</label>
-                <input 
-                  type="text" 
-                  id="major" 
-                  v-model="userInfo.major"
-                  placeholder="请输入专业"
-                />
-              </div>
-
-              <div class="form-group">
-                <label for="github">GitHub</label>
-                <input 
-                  type="url" 
-                  id="github" 
-                  v-model="userInfo.github"
-                  placeholder="请输入GitHub地址"
-                />
-              </div>
-
-              <div class="form-group full-width">
-                <label for="bio">个人简介</label>
-                <textarea 
-                  id="bio" 
-                  v-model="userInfo.bio"
-                  placeholder="请输入个人简介"
-                  rows="3"
-                ></textarea>
-              </div>
-
-              <div class="form-group full-width">
-                <label for="signature">个性签名</label>
-                <input 
-                  type="text" 
-                  id="signature" 
-                  v-model="userInfo.signature"
-                  placeholder="请输入个性签名"
-                  maxlength="200"
-                />
-                <div class="char-count">{{ userInfo.signature.length }}/200</div>
-              </div>
-
-              <div class="form-group full-width">
-                <label for="interests">兴趣爱好</label>
-                <textarea 
-                  id="interests" 
-                  v-model="userInfo.interests"
-                  placeholder="请输入兴趣爱好"
-                  rows="3"
-                ></textarea>
-              </div>
-            </div>
-
-            <div class="form-actions">
-              <button type="submit" class="btn-save" :disabled="isSubmitting">
-                <span v-if="isSubmitting">保存中...</span>
-                <span v-else>保存修改</span>
-              </button>
-              <button type="button" class="btn-reset" @click="resetForm">重置</button>
-            </div>
-
-            <div v-if="message" class="message" :class="messageType">
-              {{ message }}
-            </div>
-          </form>
-        </section>
 
         <!-- 个人IP打造宣传 -->
         <section class="ip-section">
@@ -245,19 +167,26 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import Navbar from './Navbar.vue';
 import CommunityBase from './CommunityBase.vue';
 import { useUserStore } from '../assets/stores';
 import { post, get } from '../assets/http.js';
 
 const userStore = useUserStore();
+const router = useRouter();
 
 // 用户信息数据
 const userInfo = reactive({
+  id: '',
   username: '',
+  email: '',
+  date_joined: '',
+  last_login: '',
   phone: '',
   nick_name: '',
   gender: '',
+  gender_display: '',
   birth_date: '',
   city: '',
   major: '',
@@ -267,126 +196,60 @@ const userInfo = reactive({
   github: ''
 });
 
-// 表单验证错误
-interface FormErrors {
-  username?: string;
-  phone?: string;
-}
-const errors = reactive<FormErrors>({});
-
-// 提交状态
-const isSubmitting = ref(false);
-
-// 提示信息
-const message = ref('');
-const messageType = ref('success');
-
-// 保存原始数据，用于重置
-const originalUserInfo = reactive({ ...userInfo });
-
 // 加载用户信息
 const loadUserInfo = async () => {
   try {
-    // 调用API获取当前用户信息，请求会自动带上token
-    const response = await get('/api/user/profile/');
-    if (response.success) {
-      // 使用API返回的用户信息
+    // 调用API获取当前用户信息，请求会自动带上session cookie
+    const response = await get('/api/user/get_current_user_info/');
+    
+    // 检查响应数据格式 - 后端返回的数据结构是 { success: true, data: {...}, ... }
+    if (response && response.success && response.data && response.data.username) {
+      // 正确解析API返回的用户信息，从data字段中获取
       Object.assign(userInfo, response.data);
       // 如果API返回的用户名与store中的用户名不一致，更新store
       if (userInfo.username !== userStore.username) {
         userStore.setUsername(userInfo.username);
+        console.log('✅ 从API更新用户名:', userInfo.username);
+      }
+      console.log('📊 用户信息加载成功:', userInfo);
+    } else if (response) {
+      // 响应存在但格式不正确
+      console.warn('⚠️ API返回数据格式异常:', response);
+      // 如果store已有用户名，保持不变
+      if (userStore.username) {
+        userInfo.username = userStore.username;
+        console.log('🔄 使用store中已有的用户名:', userStore.username);
       }
     } else {
-      // API请求失败时，至少使用store中的用户名
+      // 用户未登录或API无响应
+      console.log('❌ API未返回数据，但store中可能已有用户名:', userStore.username);
+      // 如果store已有用户名，保持不变
       if (userStore.username) {
         userInfo.username = userStore.username;
       }
     }
   } catch (error) {
     console.error('获取用户信息失败:', error);
-    // 异常情况下，至少使用store中的用户名
+    // API请求失败时，如果store已有用户名，保持userInfo中的用户名
     if (userStore.username) {
       userInfo.username = userStore.username;
     }
   }
-  // 初始化原始数据用于比较
-  Object.assign(originalUserInfo, { ...userInfo });
 };
 
-// 表单验证
-const validateForm = () => {
-  const newErrors: any = {};
-  
-  // 用户名验证
-  if (!userInfo.username.trim()) {
-    newErrors.username = '用户名不能为空';
-  } else if (userInfo.username.length < 3) {
-    newErrors.username = '用户名长度不能少于3个字符';
-  }
-  
-  // 手机号码验证
-  if (userInfo.phone && !/^1[3-9]\d{9}$/.test(userInfo.phone)) {
-    newErrors.phone = '请输入有效的手机号码';
-  }
-  
-  Object.assign(errors, newErrors);
-  return Object.keys(newErrors).length === 0;
+// 导航到个人信息编辑页面
+const navigateToEdit = () => {
+  router.push('/profile/edit');
 };
 
-// 保存个人信息
-const saveProfile = async () => {
-  if (!validateForm()) {
-    return;
-  }
-  
-  isSubmitting.value = true;
-  message.value = '';
-  
-  try {
-    // 检查用户名是否已修改，如果修改了则调用check_username API
-    if (userInfo.username !== originalUserInfo.username) {
-      try {
-        const checkResponse = await get('/api/user/check_username/', { username: userInfo.username });
-        // 根据后端API实际返回格式处理响应
-        if (checkResponse && !checkResponse.available) {
-          message.value = checkResponse.message || '用户名不可用';
-          messageType.value = 'error';
-          return;
-        }
-        // 如果available为true，说明用户名可用
-      } catch (checkError: any) {
-        // 捕获API调用错误
-        message.value = '用户名检查失败：' + (checkError.message || '未知错误');
-        messageType.value = 'error';
-        return;
-      }
-    }
-    
-    // 调用后端API更新用户信息
-    const response = await post('/api/user/update_user_profile/', userInfo);
-    
-    if (response.success) {
-      message.value = response.message || '保存成功';
-      messageType.value = 'success';
-      // 更新原始数据
-      Object.assign(originalUserInfo, { ...userInfo });
-    } else {
-      message.value = response.error || '保存失败';
-      messageType.value = 'error';
-    }
-  } catch (error: any) {
-    message.value = error.message || '保存失败，请稍后重试';
-    messageType.value = 'error';
-  } finally {
-    isSubmitting.value = false;
-  }
+// 导航到我的帖子页面
+const navigateToPosts = () => {
+  router.push('/user/posts');
 };
 
-// 重置表单
-const resetForm = () => {
-  Object.assign(userInfo, originalUserInfo);
-  Object.assign(errors, {});
-  message.value = '';
+// 导航到我的评论页面
+const navigateToComments = () => {
+  router.push('/user/comments');
 };
 
 // 页面挂载时加载用户信息
@@ -827,6 +690,75 @@ onMounted(() => {
   color: #666;
 }
 
+/* 用户信息卡片 */
+.user-profile-card {
+  background-color: white;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.profile-header h3 {
+  font-size: 18px;
+  color: #333;
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.profile-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-info {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 15px;
+}
+
+.info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.info-item label {
+  font-weight: 600;
+  color: #555;
+  font-size: 14px;
+}
+
+.info-item span {
+  color: #333;
+  font-size: 14px;
+}
+
+.info-item a {
+  color: #3498db;
+  text-decoration: none;
+}
+
+.info-item a:hover {
+  text-decoration: underline;
+}
+
+.info-item.full-width {
+  grid-column: 1 / -1;
+}
+
+.info-item.full-width p {
+  margin: 0;
+  color: #333;
+  font-size: 14px;
+  line-height: 1.5;
+  background-color: #f9f9f9;
+  padding: 10px;
+  border-radius: 4px;
+}
+
+/* 统计信息 */
 .personal-stats {
   display: flex;
   gap: 30px;
@@ -848,6 +780,32 @@ onMounted(() => {
   font-size: 14px;
   color: #666;
   margin-top: 5px;
+}
+
+/* 个人信息编辑按钮 */
+.profile-actions {
+  margin-top: 20px;
+  text-align: left;
+}
+
+.btn-edit-profile {
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-edit-profile:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
 }
 
 /* 用户发布的社区文章展示 */

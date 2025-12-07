@@ -381,18 +381,14 @@ const handleLogin = async () => {
     // 获取用户名 - 从返回数据中获取
     const username = data.username || data.user?.username || loginForm.identifier;
     
-    // 获取token - 从返回数据中获取
-    const token = data.token || data.user?.token || '';
-    
-    console.log('登录成功 - 准备保存用户信息:', { username, token });
+    console.log('登录成功 - 准备保存用户信息:', { username });
     
     // 通过用户store保存登录信息，确保状态管理的一致性
-    userStore.setUserInfo(username, token);
+    userStore.setUserInfo(username);
     
     // 验证保存是否成功
     const savedUsername = localStorage.getItem('username');
-    const savedToken = localStorage.getItem('token');
-    console.log('登录成功，localStorage保存结果:', { savedUsername, savedToken });
+    console.log('登录成功，localStorage保存结果:', { savedUsername });
     console.log('登录成功，store状态:', { username: userStore.username, isLoggedIn: userStore.isLoggedIn });
     
     // 不使用setTimeout，直接使用router.replace进行跳转

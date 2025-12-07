@@ -289,11 +289,8 @@ const handleRegister = async () => {
     // 获取用户名 - 从返回数据中获取
     const username = data.username || data.user?.username || registerForm.username;
     
-    // 获取token - 从返回数据中获取
-    const token = data.token || data.user?.token || '';
-    
     // 通过用户store保存登录信息，确保状态管理的一致性
-    userStore.setUserInfo(username, token);
+    userStore.setUserInfo(username);
     
     // 注册成功后跳转到首页
     router.replace('/');

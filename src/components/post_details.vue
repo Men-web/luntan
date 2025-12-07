@@ -63,26 +63,32 @@
           
           <!-- 回复表单 -->
           <div v-if="showReplyForms[comment.id]" class="reply-form">
-            <textarea
-              v-model="replyForms[comment.id]"
-              placeholder="请输入回复内容"
-              class="form-control"
-              rows="2"
-            ></textarea>
-            <div class="comment-actions">
-              <button 
-                @click="cancelReply(comment.id)" 
-                class="cancel-btn"
-              >
-                取消
-              </button>
-              <button 
-                @click="submitReply(comment.id)" 
-                class="comment-btn"
-                :disabled="isSubmittingComment || !replyForms[comment.id]?.trim()"
-              >
-                {{ isSubmittingComment ? '回复中...' : '回复' }}
-              </button>
+            <div class="comment-input-container">
+              <textarea
+                v-model="replyForms[comment.id]"
+                placeholder="回复..."
+                class="comment-textarea"
+                rows="1"
+                @input="autoResizeReplyTextarea(comment.id)"
+              ></textarea>
+              <div class="comment-input-footer">
+                <span class="char-count">{{ replyForms[comment.id]?.length || 0 }}/500</span>
+                <div class="comment-actions">
+                  <button 
+                    @click="cancelReply(comment.id)" 
+                    class="cancel-btn"
+                  >
+                    取消
+                  </button>
+                  <button 
+                    @click="submitReply(comment.id)" 
+                    class="comment-btn"
+                    :disabled="isSubmittingComment || !replyForms[comment.id]?.trim()"
+                  >
+                    {{ isSubmittingComment ? '回复中...' : '回复' }}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
           
@@ -100,7 +106,7 @@
             <div v-if="!collapsedReplies[comment.id]" class="replies-list">
               <div v-for="reply in comment.replies" :key="reply.id" class="comment-item reply">
                 <div class="comment-header">
-                  <span class="comment-author">{{  reply.author }}</span>
+                  <span class="comment-author">{{ typeof reply.author === 'object' ? reply.author.username : reply.author }}</span>
                   <span class="comment-date">{{ reply.created_at }}</span>
                   <button 
                     v-if="isLoggedIn" 
@@ -119,26 +125,32 @@
                  
                 <!-- 回复表单 -->
                 <div v-if="showReplyForms[reply.id]" class="reply-form">
-                  <textarea
-                    v-model="replyForms[reply.id]"
-                    placeholder="请输入回复内容"
-                    class="form-control"
-                    rows="2"
-                  ></textarea>
-                  <div class="comment-actions">
-                    <button 
-                      @click="cancelReply(reply.id)" 
-                      class="cancel-btn"
-                    >
-                      取消
-                    </button>
-                    <button 
-                      @click="submitReply(reply.id)" 
-                      class="comment-btn"
-                      :disabled="isSubmittingComment || !replyForms[reply.id]?.trim()"
-                    >
-                      {{ isSubmittingComment ? '回复中...' : '回复' }}
-                    </button>
+                  <div class="comment-input-container">
+                    <textarea
+                      v-model="replyForms[reply.id]"
+                      placeholder="回复..."
+                      class="comment-textarea"
+                      rows="1"
+                      @input="autoResizeReplyTextarea(reply.id)"
+                    ></textarea>
+                    <div class="comment-input-footer">
+                      <span class="char-count">{{ replyForms[reply.id]?.length || 0 }}/500</span>
+                      <div class="comment-actions">
+                        <button 
+                          @click="cancelReply(reply.id)" 
+                          class="cancel-btn"
+                        >
+                          取消
+                        </button>
+                        <button 
+                          @click="submitReply(reply.id)" 
+                          class="comment-btn"
+                          :disabled="isSubmittingComment || !replyForms[reply.id]?.trim()"
+                        >
+                          {{ isSubmittingComment ? '回复中...' : '回复' }}
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -152,38 +164,45 @@
         <h3>发表评论</h3>
         <div v-if="!isLoggedIn" class="login-prompt">请先登录后再发表评论</div>
         <div v-else class="comment-form">
-          <textarea
-            v-model="newComment"
-            placeholder="请输入评论内容"
-            class="form-control"
-            rows="3"
-          ></textarea>
-          <div class="comment-actions">
-            <button 
-              @click="resetComment"
-              class="cancel-btn"
-            >
-              取消
-            </button>
-            <button 
-              @click="submitComment"
-              class="comment-btn"
-              :disabled="isSubmittingComment || !newComment?.trim()"
-            >
-              {{ isSubmittingComment ? '评论中...' : '发表评论' }}
-            </button>
+          <div class="comment-input-container">
+            <textarea
+              v-model="newComment"
+              placeholder="分享你的观点..."
+              class="comment-textarea"
+              rows="1"
+              @input="autoResizeTextarea"
+            ></textarea>
+            <div class="comment-input-footer">
+              <span class="char-count">{{ newComment?.length || 0 }}/500</span>
+              <div class="comment-actions">
+                <button 
+                  @click="resetComment"
+                  class="cancel-btn"
+                >
+                  取消
+                </button>
+                <button 
+                  @click="submitComment"
+                  class="comment-btn"
+                  :disabled="isSubmittingComment || !newComment?.trim()"
+                >
+                  {{ isSubmittingComment ? '评论中...' : '发表评论' }}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-    </section>
+    </div>
+  </section>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, onMounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { baseURL } from '../assets/url';
 import { useUserStore } from '../assets/stores';
+import { post as httpPost } from '../assets/http.js';
 
 // 定义帖子数据类型
 interface Post {
@@ -216,7 +235,7 @@ const router = useRouter();
 
 // 使用用户store
 const userStore = useUserStore();
-const isLoggedIn = userStore.isLoggedIn;
+const isLoggedIn = computed(() => userStore.isLoggedIn);
 
 // 状态管理
 const post = ref<Post>({
@@ -238,9 +257,11 @@ const comments = ref<Comment[]>([]);
 const isLoadingComments = ref(false);
 const newComment = ref('');
 const isSubmittingComment = ref(false);
-const collapsedComments = ref(true); // 默认显示但处于折叠模式
+const collapsedComments = ref(false); // 默认显示且不折叠
 // 控制评论回复列表折叠/展开的状态
 const collapsedReplies = ref<Record<number, boolean>>({}); // 使用评论ID作为键
+
+
 
 // 社区类型 - 从帖子数据中获取或默认设置
 const communityType = ref<string>('movie'); // 默认值设为'movie'，后续会从帖子数据中更新
@@ -535,6 +556,28 @@ const toggleComments = () => {
   collapsedComments.value = !collapsedComments.value;
 };
 
+// 自动调整主评论文本域高度
+const autoResizeTextarea = () => {
+  const textarea = document.querySelector('.comment-textarea') as HTMLTextAreaElement;
+  if (textarea) {
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
+  }
+};
+
+// 自动调整回复文本域高度
+const autoResizeReplyTextarea = (commentId: number) => {
+  const textareas = document.querySelectorAll('.comment-textarea') as NodeListOf<HTMLTextAreaElement>;
+  textareas.forEach((textarea, index) => {
+    if (textarea.parentNode?.parentNode instanceof Element && textarea.parentNode.parentNode.classList.contains('reply-form')) {
+      textarea.style.height = 'auto';
+      textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
+    }
+  });
+};
+
+
+
 // 组件挂载时获取帖子详情
 onMounted(() => {
   fetchPostDetails();
@@ -677,31 +720,69 @@ onMounted(() => {
   background-color: #66b1ff;
 }
 
+
+
+
+
+/* 评论输入容器样式 */
+.comment-input-container {
+  background-color: #ffffff;
+  border: 1px solid #dcdfe6;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.04);
+  transition: all 0.3s ease;
+}
+
+.comment-input-container:focus-within {
+  border-color: #409eff;
+  box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2);
+}
+
+/* 评论文本域样式 */
+.comment-textarea {
+  width: 100%;
+  padding: 12px 15px;
+  border: none;
+  border-radius: 8px 8px 0 0;
+  resize: none;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #303133;
+  background-color: transparent;
+  overflow-y: hidden;
+  transition: all 0.3s ease;
+}
+
+.comment-textarea::placeholder {
+  color: #c0c4cc;
+  font-style: italic;
+}
+
+.comment-textarea:focus {
+  outline: none;
+}
+
+/* 评论输入框底部栏 */
+.comment-input-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 15px;
+  background-color: #fafafa;
+  border-top: 1px solid #ebeef5;
+}
+
+/* 字数统计 */
+.char-count {
+  font-size: 12px;
+  color: #909399;
+}
+
 /* 回复表单样式优化 */
 .reply-form {
   margin-top: 12px;
   margin-left: 0;
-  padding: 15px;
-  background-color: #f5f7fa;
-  border-radius: 8px;
-  border: 1px solid #e8e8e8;
-}
-
-.reply-form textarea {
-  width: 100%;
-  padding: 10px;
-  border: 1px solid #dcdfe6;
-  border-radius: 6px;
-  resize: vertical;
-  min-height: 60px;
-  font-size: 14px;
-  transition: border-color 0.3s;
-}
-
-.reply-form textarea:focus {
-  outline: none;
-  border-color: #409eff;
-  box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2);
 }
 
 /* 评论操作按钮样式优化 */
@@ -709,7 +790,6 @@ onMounted(() => {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  margin-top: 8px;
 }
 
 .cancel-btn {
@@ -743,9 +823,34 @@ onMounted(() => {
   background-color: #66b1ff;
 }
 
-.comment-btn:disabled {
-  background-color: #a0cfff;
-  cursor: not-allowed;
+/* 移除旧的表单控件样式 */
+.form-control {
+  display: none;
+}
+
+/* 添加评论框悬停效果 */
+.comment-input-container:hover {
+  border-color: #c6e2ff;
+  box-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.08);
+}
+
+/* 优化评论区头部样式 */
+.add-comment-section h3 {
+  margin-bottom: 15px;
+  color: #303133;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+/* 登录提示样式优化 */
+.login-prompt {
+  padding: 20px;
+  background-color: #f0f9eb;
+  border: 1px solid #d9f7be;
+  border-radius: 8px;
+  color: #67c23a;
+  text-align: center;
+  font-size: 14px;
 }
 
 /* 回复评论样式 */
