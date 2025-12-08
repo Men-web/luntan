@@ -286,14 +286,12 @@ const handleRegister = async () => {
     // 注册成功处理
     console.log('注册成功', data);
     
-    // 获取用户名 - 从返回数据中获取
-    const username = data.username || data.user?.username || registerForm.username;
-    
-    // 通过用户store保存登录信息，确保状态管理的一致性
-    userStore.setUserInfo(username);
-    
-    // 注册成功后跳转到首页
-    router.replace('/');
+    // 注册成功后跳转到登录页面，并添加成功提示
+    // 移除直接登录的逻辑，改为跳转到登录页
+    router.replace({ 
+      path: '/login',
+      query: { registered: 'true' } // 通过URL参数传递注册成功的信息
+    });
   } catch (error) {
     console.error('注册错误:', error);
     globalError.value = error instanceof Error ? error.message : '注册时发生网络错误，请稍后重试';

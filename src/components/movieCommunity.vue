@@ -15,12 +15,28 @@
         />
       </div>
     </main>
+    
+    <!-- 底部写帖子按钮 -->
+    <div class="jump-button-container">
+      <button @click="goToCreatePost" class="jump-button">
+        <span class="button-icon">+</span>
+        <span class="button-text">写帖子</span>
+      </button>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import Navbar from './Navbar.vue';
 import CommunityBase from './CommunityBase.vue';
+import { useRouter } from 'vue-router';
+
+const router = useRouter();
+
+// 跳转到创建帖子页面
+const goToCreatePost = () => {
+  router.push('/createPost');
+};
 </script>
 
 <style scoped>
@@ -47,5 +63,65 @@ h1 {
   color: #333;
   margin-bottom: 30px;
   text-align: center;
+}
+
+/* 底部写帖子按钮样式 */
+.jump-button-container {
+  position: fixed;
+  bottom: 30px;
+  left: 30px;
+  z-index: 1000;
+}
+
+.jump-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: linear-gradient(135deg, #409eff, #66b1ff);
+  color: white;
+  border: none;
+  border-radius: 50px;
+  padding: 12px 20px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(64, 158, 255, 0.4);
+  transition: all 0.3s ease;
+  animation: pulse 2s infinite;
+}
+
+.jump-button:hover {
+  background: linear-gradient(135deg, #66b1ff, #409eff);
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(64, 158, 255, 0.6);
+}
+
+.jump-button:active {
+  transform: translateY(1px);
+  box-shadow: 0 2px 10px rgba(64, 158, 255, 0.4);
+}
+
+.button-icon {
+  font-size: 20px;
+  font-weight: bold;
+  line-height: 1;
+}
+
+.button-text {
+  font-size: 16px;
+}
+
+/* 动画效果 */
+@keyframes pulse {
+  0% {
+    box-shadow: 0 4px 15px rgba(64, 158, 255, 0.4);
+  }
+  50% {
+    box-shadow: 0 6px 25px rgba(64, 158, 255, 0.6);
+  }
+  100% {
+    box-shadow: 0 4px 15px rgba(64, 158, 255, 0.4);
+  }
 }
 </style>

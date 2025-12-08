@@ -68,7 +68,7 @@
                     <span class="like-count">👍 {{ comment.like_count }}</span>
                   </div>
                   <button 
-                    v-if="userStore.isLoggedIn" 
+                    v-if="userStore.isLoggedIn && !comment.parent_id" 
                     @click="toggleReplyForm(post.id, comment.id)" 
                     class="reply-btn"
                   >
@@ -124,8 +124,9 @@
                       <div class="comment-stats">
                         <span class="like-count">👍 {{ reply.like_count }}</span>
                       </div>
+                      <!-- 嵌套回复不显示回复按钮，限制回复深度为两级 -->
                       <button 
-                        v-if="userStore.isLoggedIn" 
+                        v-if="false" 
                         @click="toggleReplyForm(post.id, reply.id)" 
                         class="reply-btn"
                       >

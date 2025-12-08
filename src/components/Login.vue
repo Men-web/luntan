@@ -115,6 +115,9 @@
           </form>
         </div>
         
+        <div v-if="successMessage" class="success-message">
+          {{ successMessage }}
+        </div>
         <div v-if="errorMessage" class="error-message">
           {{ errorMessage }}
         </div>
@@ -125,12 +128,13 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { baseURL } from '../assets/url';
 import { useUserStore } from '../assets/stores';
 
 // 获取路由实例
 const router = useRouter();
+const route = useRoute();
 
 // 获取用户store
 const userStore = useUserStore();
@@ -139,6 +143,11 @@ const userStore = useUserStore();
 // 注意：主要的token验证逻辑在main.ts中已实现，这里只需确保本地状态同步
 onMounted(() => {
   userStore.loadUserFromStorage();
+  
+  // 检查是否有注册成功的提示
+  if (route.query.registered === 'true') {
+    successMessage.value = '注册成功，请登录！';
+  }
 });
 
 // 活动标签页
@@ -167,6 +176,9 @@ const isLoading = ref(false);
 
 // 错误信息
 const errorMessage = ref('');
+
+// 成功信息
+const successMessage = ref('');
 
 // 发送验证码
 const sendVerificationCode = async () => {
@@ -549,6 +561,15 @@ const handleLogin = async () => {
   padding: 10px;
   background-color: #fef0f0;
   color: #f56c6c;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.success-message {
+  margin-top: 15px;
+  padding: 10px;
+  background-color: #f0f9eb;
+  color: #67c23a;
   border-radius: 4px;
   font-size: 14px;
 }

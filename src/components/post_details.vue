@@ -41,122 +41,17 @@
       <div v-if="isLoadingComments" class="loading">评论加载中...</div>
       <div v-else-if="comments.length === 0" class="no-comments">暂无评论</div>
       <div v-else-if="!collapsedComments" class="comments-list">
-        <!-- 渲染顶层评论 -->
-        <div v-for="comment in comments" :key="comment.id" class="comment-item">
-          <div class="comment-header">
-            <span class="comment-author">{{ typeof comment.author === 'object' ? comment.author.username : comment.author }}</span>
-            <span class="comment-date">{{ comment.created_at }}</span>
-            <button 
-              v-if="isLoggedIn" 
-              @click="toggleReplyForm(comment.id)" 
-              class="reply-btn-top"
-            >
-              {{ showReplyForms[comment.id] ? '取消回复' : '回复' }}
-            </button>
-          </div>
-          <p class="comment-content">{{ comment.content }}</p>
-          <div class="comment-actions-area">
-            <div class="comment-stats">
-              <span class="like-count">👍 {{ comment.like_count }}</span>
-            </div>
-          </div>
-          
-          <!-- 回复表单 -->
-          <div v-if="showReplyForms[comment.id]" class="reply-form">
-            <div class="comment-input-container">
-              <textarea
-                v-model="replyForms[comment.id]"
-                placeholder="回复..."
-                class="comment-textarea"
-                rows="1"
-                @input="autoResizeReplyTextarea(comment.id)"
-              ></textarea>
-              <div class="comment-input-footer">
-                <span class="char-count">{{ replyForms[comment.id]?.length || 0 }}/500</span>
-                <div class="comment-actions">
-                  <button 
-                    @click="cancelReply(comment.id)" 
-                    class="cancel-btn"
-                  >
-                    取消
-                  </button>
-                  <button 
-                    @click="submitReply(comment.id)" 
-                    class="comment-btn"
-                    :disabled="isSubmittingComment || !replyForms[comment.id]?.trim()"
-                  >
-                    {{ isSubmittingComment ? '回复中...' : '回复' }}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <!-- 渲染该评论的回复（嵌套评论） -->
-          <div v-if="comment.replies && comment.replies.length > 0" class="replies-container">
-            <div class="replies-header">
-              <span class="replies-count">回复 ({{ comment.replies.length }})</span>
-              <button 
-                @click="collapsedReplies[comment.id] = !collapsedReplies[comment.id]" 
-                class="toggle-replies-btn"
-              >
-                {{ collapsedReplies[comment.id] ? '展开' : '折叠' }}
-              </button>
-            </div>
-            <div v-if="!collapsedReplies[comment.id]" class="replies-list">
-              <div v-for="reply in comment.replies" :key="reply.id" class="comment-item reply">
-                <div class="comment-header">
-                  <span class="comment-author">{{ typeof reply.author === 'object' ? reply.author.username : reply.author }}</span>
-                  <span class="comment-date">{{ reply.created_at }}</span>
-                  <button 
-                    v-if="isLoggedIn" 
-                    @click="toggleReplyForm(reply.id)" 
-                    class="reply-btn-top"
-                  >
-                    {{ showReplyForms[reply.id] ? '取消回复' : '回复' }}
-                  </button>
-                </div>
-                <p class="comment-content">{{ reply.content }}</p>
-                <div class="comment-actions-area">
-                  <div class="comment-stats">
-                    <span class="like-count">👍 {{ reply.like_count }}</span>
-                  </div>
-                </div>
-                 
-                <!-- 回复表单 -->
-                <div v-if="showReplyForms[reply.id]" class="reply-form">
-                  <div class="comment-input-container">
-                    <textarea
-                      v-model="replyForms[reply.id]"
-                      placeholder="回复..."
-                      class="comment-textarea"
-                      rows="1"
-                      @input="autoResizeReplyTextarea(reply.id)"
-                    ></textarea>
-                    <div class="comment-input-footer">
-                      <span class="char-count">{{ replyForms[reply.id]?.length || 0 }}/500</span>
-                      <div class="comment-actions">
-                        <button 
-                          @click="cancelReply(reply.id)" 
-                          class="cancel-btn"
-                        >
-                          取消
-                        </button>
-                        <button 
-                          @click="submitReply(reply.id)" 
-                          class="comment-btn"
-                          :disabled="isSubmittingComment || !replyForms[reply.id]?.trim()"
-                        >
-                          {{ isSubmittingComment ? '回复中...' : '回复' }}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div> <!-- Close replies-list -->
-          </div>
-        </div>
+        <!-- 使用CommentItem组件渲染评论，支持无限嵌套回复 -->
+        <CommentItem
+          v-for="comment in comments"
+          :key="comment.id"
+          :comment="comment"
+          :is-logged-in="isLoggedIn"
+          :is-submitting-comment="isSubmittingComment"
+          :collapsed-replies="collapsedReplies"
+          @submit-reply="handleSubmitReply"
+          @cancel-reply="handleCancelReply"
+        />
       </div>
       
       <!-- 发表评论表单 -->
@@ -203,6 +98,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { baseURL } from '../assets/url';
 import { useUserStore } from '../assets/stores';
 import { post as httpPost } from '../assets/http.js';
+import CommentItem from './CommentItem.vue';
 
 // 定义帖子数据类型
 interface Post {
@@ -517,11 +413,23 @@ const submitReply = async (parentId: number) => {
       
       // 尝试实时添加回复到评论列表
       if (data.new_comment) {
-        // 查找父评论
-        const parentCommentIndex = comments.value.findIndex(c => c.id === parentId);
-        if (parentCommentIndex !== -1 && comments.value[parentCommentIndex]) {
+        // 查找父评论（支持嵌套回复）
+        const findParentComment = (commentsList: Comment[]): Comment | undefined => {
+          for (const comment of commentsList) {
+            if (comment.id === parentId) {
+              return comment;
+            }
+            if (comment.replies && comment.replies.length > 0) {
+              const found = findParentComment(comment.replies);
+              if (found) return found;
+            }
+          }
+          return undefined;
+        };
+        
+        const parentComment = findParentComment(comments.value);
+        if (parentComment) {
           // 确保父评论有replies数组
-          const parentComment = comments.value[parentCommentIndex];
           if (!parentComment.replies) {
             parentComment.replies = [];
           }
@@ -549,6 +457,17 @@ const submitReply = async (parentId: number) => {
 const cancelReply = (commentId: number) => {
   showReplyForms[commentId] = false;
   replyForms[commentId] = '';
+};
+
+// 处理子组件提交回复
+const handleSubmitReply = async (parentId: number, content: string) => {
+  replyForms[parentId] = content;
+  await submitReply(parentId);
+};
+
+// 处理子组件取消回复
+const handleCancelReply = (parentId: number) => {
+  cancelReply(parentId);
 };
 
 // 切换评论列表的折叠/展开状态
