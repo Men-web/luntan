@@ -24,14 +24,7 @@
       </div>
       <div class="form-group">
         <label for="content">内容</label>
-        <textarea
-          id="content"
-          v-model="postForm.content"
-          placeholder="请输入帖子内容"
-          class="form-control"
-          rows="5"
-          required
-        ></textarea>
+        <div id="content" ref="quillEditor" :class="{ 'disabled': isSubmitting }"></div>
       </div>
       <button type="submit" class="submit-btn" :disabled="isSubmitting">
         {{ isSubmitting ? '发布中...' : '发布帖子' }}
@@ -50,12 +43,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, onMounted } from 'vue';
+import { ref, reactive, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import { baseURL } from '../assets/url';
 import { useUserStore } from '../assets/stores';
 import { useDraftStore } from '../assets/stores';
-
+// 导入Quill.js编辑器和相关模块
+import Quill from 'quill';
+import 'quill/dist/quill.snow.css';
+import ImageUploader from 'quill-image-uploader';
+// 暂时移除imageDrop模块，避免初始化错误
+// import * as ImageDrop from 'quill-image-drop-module';
 
 // 定义事件
 const emit = defineEmits<{
@@ -86,6 +84,60 @@ const isSubmitting = ref(false);
 const submitMessage = ref('');
 const messageType = ref<'success' | 'error'>('success');
 
+// Quill编辑器实例
+const quillEditor = ref<HTMLDivElement | null>(null);
+let quill: Quill | null = null;
+
+// 注册Quill插件
+Quill.register('modules/imageUploader', ImageUploader);
+// 暂时移除imageDrop模块注册，避免初始化错误
+// Quill.register('modules/imageDrop', ImageDrop);
+
+// Quill编辑器配置
+const quillOptions = {
+  theme: 'snow',
+  modules: {
+    toolbar: [
+      ['bold', 'italic'],
+      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+      ['image']
+    ],
+    imageUploader: {
+      upload: async (file: File) => {
+        try {
+          const formData = new FormData();
+          formData.append('image', file);
+          
+          const token = localStorage.getItem('token');
+          const response = await fetch(`${baseURL}/api/tiezi/upload_image/`, {
+            method: 'POST',
+            body: formData,
+            credentials: 'include',
+            headers: {
+              'Authorization': token ? `Bearer ${token}` : ''
+            }
+          });
+          
+          if (!response.ok) {
+            throw new Error('图片上传失败');
+          }
+          
+          const data = await response.json();
+          if (data.success && data.url) {
+            return data.url;
+          } else {
+            throw new Error('图片上传失败: ' + (data.message || '未知错误'));
+          }
+        } catch (error) {
+          console.error('图片上传失败:', error);
+          throw error;
+        }
+      }
+    }
+  },
+  placeholder: '请输入帖子内容...',
+};
+
 // 取消发帖并返回主页
 const cancelPost = () => {
   if (postForm.title || postForm.content || postForm.category) {
@@ -102,16 +154,40 @@ const cancelPost = () => {
   router.push('/');
 }
 
-// 组件挂载时加载草稿
+// 组件挂载时加载草稿并初始化Quill编辑器
 onMounted(() => {
+  // 初始化Quill编辑器
+  if (quillEditor.value) {
+    try {
+      quill = new Quill(quillEditor.value, quillOptions);
+      
+      // 监听编辑器内容变化，同步到postForm.content
+      quill.on('text-change', () => {
+        const html = quill?.root.innerHTML || '';
+        postForm.content = html;
+      });
+    } catch (error) {
+      console.error('Quill初始化错误:', error);
+      // 可以提供一个备用方案或显示错误信息
+      submitMessage.value = '编辑器初始化失败，请刷新页面重试';
+      messageType.value = 'error';
+    }
+  }
+  
+  // 加载草稿
   draftStore.loadFromLocalStorage();
   
   // 如果有草稿，恢复到表单中
   const draft = draftStore.getDraft;
   if (draftStore.hasDraft) {
     postForm.title = draft.title || '';
-    postForm.content = draft.content || '';
     postForm.category = draft.category || '';
+    
+    // 设置编辑器内容
+    if (quill && draft.content) {
+      quill.root.innerHTML = draft.content;
+      postForm.content = draft.content;
+    }
   }
 });
 
@@ -163,8 +239,18 @@ const submitPost = async () => {
       body: JSON.stringify(postForm)
     });
     
+    // 添加详细的错误处理
     if (!response.ok) {
-      throw new Error('发帖失败，请重试');
+      // 尝试获取后端返回的错误信息
+      let errorData;
+      try {
+        errorData = await response.json();
+        console.error('后端返回的错误信息:', errorData);
+      } catch (e) {
+        // 如果无法解析JSON，使用状态文本
+        errorData = { message: response.statusText };
+      }
+      throw new Error(`发帖失败: ${errorData.message || '未知错误'}`);
     }
     
     const data = await response.json();
@@ -187,6 +273,7 @@ const submitPost = async () => {
       submitMessage.value = '';
     }, 3000);
   } catch (error) {
+    console.error('发帖请求错误:', error);
     submitMessage.value = error instanceof Error ? error.message : '发帖时发生错误';
     messageType.value = 'error';
   } finally {
