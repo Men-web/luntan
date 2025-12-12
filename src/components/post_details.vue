@@ -18,7 +18,29 @@
       <div v-if="isLoading" class="loading">加载中...</div>
       <div v-else-if="error" class="error">{{ error }}</div>
       <div v-else class="post-body">
-        {{ post.content }}
+        <div v-html="post.content"></div>
+        
+        <!-- 调试信息 -->
+        <div style="margin: 20px 0; padding: 10px; background: #f0f0f0; border-radius: 4px;">
+          <p>调试信息:</p>
+          <p>图片数量: {{ post.images?.length || 0 }}</p>
+          <p>图片URLs: {{ post.images?.join(', ') || '无' }}</p>
+        </div>
+        
+        <!-- 九宫格图片展示 -->
+        <div v-if="post.images && post.images.length > 0" class="post-images">
+          <img 
+            v-for="(image, index) in post.images" 
+            :key="index" 
+            :src="image" 
+            class="post-image-preview" 
+            alt="帖子图片" 
+            @click="openImageViewer(image)" 
+          />
+        </div>
+        <div v-else>
+          <p>没有图片可显示</p>
+        </div>
       </div>
     </main>
 
@@ -90,6 +112,13 @@
     </div>
   </section>
   </div>
+    <!-- 图片查看器模态框 -->
+    <div v-if="showImageViewer" class="image-viewer-overlay" @click="closeImageViewer">
+      <div class="image-viewer-content" @click.stop>
+        <img :src="currentImage" class="viewer-image" alt="放大查看" />
+        <button class="close-btn" @click="closeImageViewer">&times;</button>
+      </div>
+    </div>
 </template>
 
 <script setup lang="ts">
@@ -112,6 +141,7 @@ interface Post {
   view_count: number;
   is_recommended: boolean;
   community_type?: string;
+  images?: string[];
 }
 
 // 定义评论数据类型
@@ -143,8 +173,25 @@ const post = ref<Post>({
   created_at: '',
   like_count: 0,
   view_count: 0,
-  is_recommended: false
+  is_recommended: false,
+  images: []
 });
+
+// 图片查看器状态
+const showImageViewer = ref(false);
+const currentImage = ref('');
+
+// 打开图片查看器
+const openImageViewer = (imageUrl: string) => {
+  currentImage.value = imageUrl;
+  showImageViewer.value = true;
+};
+
+// 关闭图片查看器
+const closeImageViewer = () => {
+  showImageViewer.value = false;
+  currentImage.value = '';
+};
 const isLoading = ref(true);
 const error = ref('');
 
@@ -202,7 +249,81 @@ const fetchPostDetails = async () => {
     const data = await response.json();
     
     if (data.success && data.post) {
-      post.value = data.post;
+      // 移除帖子内容中的所有图片标签，只保留纯文本内容
+      const processedContent = data.post.content.replace(/<img\s+[^>]*>/gi, '').replace(/\n\s*\n/g, '\n').trim();
+      
+      console.log('原始post数据:', data.post);
+      console.log('images字段类型:', typeof data.post.images);
+      console.log('images字段是否为数组:', Array.isArray(data.post.images));
+      
+      // 处理images字段中的图片URL，如果images不是数组或者为空，则从content中提取
+        const imgUrls: string[] = [];
+        
+        // 先尝试使用专门的images字段
+        if (data.post.images) {
+          console.log('原始的images字段:', data.post.images);
+          let imagesData = data.post.images;
+          
+          // 确保images是数组格式
+          if (!Array.isArray(imagesData)) {
+            imagesData = [imagesData];
+            console.log('转换为数组后的images:', imagesData);
+          }
+          
+          // 处理图片URL，支持相对路径和绝对路径
+          for (const img of imagesData.slice(0, 9)) {
+            console.log('处理前的单个图片URL:', img);
+            if (typeof img === 'string') {
+              // 处理可能的字符串前后空格
+              const trimmedImg = img.trim();
+              console.log('去除空格后的图片URL:', trimmedImg);
+              
+              // 根据不同的URL类型进行处理
+              let processedUrl = '';
+              if (trimmedImg.startsWith('http')) {
+                // 已经是完整的URL，直接使用
+                processedUrl = trimmedImg;
+              } else if (trimmedImg.startsWith('/')) {
+                // 以/开头的路径，直接拼接baseURL
+                processedUrl = `${baseURL}${trimmedImg}`;
+              } else if (trimmedImg.startsWith('images/') || trimmedImg.startsWith('media/')) {
+                // 以images/或media/开头的路径，添加baseURL前缀
+                processedUrl = `${baseURL}/${trimmedImg}`;
+              } else {
+                // 其他情况，假设是相对路径
+                processedUrl = `${baseURL}/images/${trimmedImg}`;
+              }
+              
+              console.log('最终处理后的图片URL:', processedUrl);
+              imgUrls.push(processedUrl);
+            }
+          }
+        }
+        
+        // 不再从content中提取图片，因为后端已经完成了这个工作
+        // 这样可以避免重复处理并提高性能
+      
+      // 更新帖子数据
+      post.value = { 
+        ...data.post, 
+        content: processedContent,
+        images: imgUrls
+      };
+      
+      // 强制更新DOM
+      setTimeout(() => {
+        console.log('强制更新后的图片URL:', post.value.images);
+        const images = document.querySelectorAll('.post-image-preview');
+        console.log('实际渲染的图片数量:', images.length);
+        images.forEach((img, index) => {
+          console.log(`图片${index}的src:`, img.src);
+          console.log(`图片${index}的显示状态:`, getComputedStyle(img).display);
+        });
+      }, 100);
+      
+      console.log('最终的帖子图片URL:', post.value.images);
+      console.log('baseURL:', baseURL);
+      
       // 从帖子数据中获取社区类型
       if (data.post.community_type) {
         communityType.value = data.post.community_type;
@@ -563,6 +684,114 @@ onMounted(() => {
   color: #333;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* 确保富文本中的图片在详情页正确显示 */
+.post-body > div > img {
+  display: none;
+}
+
+/* 确保九宫格图片正常显示 */
+.post-images img {
+  display: block;
+}
+
+/* 九宫格图片样式 */
+.post-images {
+  display: grid !important;
+  grid-template-columns: repeat(3, 1fr) !important;
+  gap: 4px !important;
+  max-width: 300px !important;
+  margin-top: 20px !important;
+  padding: 10px !important;
+  background-color: #f9f9f9 !important;
+  border-radius: 8px !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  height: auto !important;
+  width: auto !important;
+}
+
+.post-image-preview {
+  width: 100% !important;
+  height: auto !important;
+  aspect-ratio: 1 / 1 !important;
+  object-fit: cover !important;
+  border-radius: 4px !important;
+  cursor: pointer !important;
+  transition: all 0.2s !important;
+  border: 1px solid #e0e0e0 !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  display: block !important;
+  content-visibility: visible !important;
+}
+
+.post-image-preview:hover {
+  transform: scale(1.05);
+  border-color: #409eff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* 特殊情况处理：1张图片 */
+.post-images:has(.post-image-preview:nth-child(1):last-child) {
+  grid-template-columns: 1fr;
+  max-width: 150px;
+}
+
+/* 特殊情况处理：2张图片 */
+.post-images:has(.post-image-preview:nth-child(2):last-child) {
+  grid-template-columns: repeat(2, 1fr);
+  max-width: 140px;
+}
+
+/* 特殊情况处理：4张图片 */
+.post-images:has(.post-image-preview:nth-child(4):last-child) {
+  grid-template-columns: repeat(2, 1fr);
+  max-width: 140px;
+}
+
+/* 图片查看器样式 */
+.image-viewer-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.9);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.image-viewer-content {
+  position: relative;
+  max-width: 90%;
+  max-height: 90%;
+}
+
+.viewer-image {
+  max-width: 100%;
+  max-height: 80vh;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+.close-btn {
+  position: absolute;
+  top: -30px;
+  right: -30px;
+  background-color: transparent;
+  color: white;
+  border: none;
+  font-size: 30px;
+  cursor: pointer;
+  padding: 5px;
+}
+
+.close-btn:hover {
+  color: #ccc;
 }
 
 /* 加载和错误状态 */

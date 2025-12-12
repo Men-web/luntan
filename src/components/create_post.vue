@@ -25,6 +25,9 @@
       <div class="form-group">
         <label for="content">内容</label>
         <div id="content" ref="quillEditor" :class="{ 'disabled': isSubmitting }"></div>
+        <div class="content-length">
+          字数: {{ contentLength }} / {{ maxContentLength }}
+        </div>
       </div>
       <button type="submit" class="submit-btn" :disabled="isSubmitting">
         {{ isSubmitting ? '发布中...' : '发布帖子' }}
@@ -83,6 +86,9 @@ const draftStore = useDraftStore();
 const isSubmitting = ref(false);
 const submitMessage = ref('');
 const messageType = ref<'success' | 'error'>('success');
+// 内容长度相关
+const contentLength = ref(0);
+const maxContentLength = ref(5000); // 根据后端限制设置适当的最大值
 
 // Quill编辑器实例
 const quillEditor = ref<HTMLDivElement | null>(null);
@@ -129,13 +135,14 @@ const quillOptions = {
             throw new Error('图片上传失败: ' + (data.message || '未知错误'));
           }
         } catch (error) {
-          console.error('图片上传失败:', error);
+
           throw error;
         }
       }
     }
   },
   placeholder: '请输入帖子内容...',
+  bounds: document.body // 确保编辑器在正确的边界内渲染
 };
 
 // 取消发帖并返回主页
@@ -161,10 +168,13 @@ onMounted(() => {
     try {
       quill = new Quill(quillEditor.value, quillOptions);
       
-      // 监听编辑器内容变化，同步到postForm.content
+      // 监听编辑器内容变化，同步到postForm.content并计算长度
       quill.on('text-change', () => {
         const html = quill?.root.innerHTML || '';
         postForm.content = html;
+        // 计算纯文本长度（去除HTML标签）
+        const plainText = html.replace(/<[^>]*>/g, '');
+        contentLength.value = plainText.length;
       });
     } catch (error) {
       console.error('Quill初始化错误:', error);
@@ -216,6 +226,14 @@ const submitPost = async () => {
     router.push('/login');
     return;
   }
+  
+  // 检查内容长度
+  if (contentLength.value > maxContentLength.value) {
+    submitMessage.value = `内容长度超过限制，当前${contentLength.value}字，最大允许${maxContentLength.value}字`;
+    messageType.value = 'error';
+    return;
+  }
+  
   isSubmitting.value = true;
   submitMessage.value = '';
   
@@ -347,9 +365,21 @@ const clearDraft = () => {
   border-color: #409eff;
 }
 
-textarea.form-control {
-  resize: vertical;
-  min-height: 100px;
+/* Quill编辑器容器样式 */
+:deep(.ql-container) {
+  font-size: 16px;
+  min-height: 200px;
+  height: auto;
+}
+
+/* 确保Quill的文本区域不可见但可访问 */
+:deep(.ql-editor) {
+  min-height: 200px;
+}
+
+/* 隐藏Quill可能生成的额外文本区域 */
+:deep(textarea.ql-editor) {
+  display: none;
 }
 
 .submit-btn {
@@ -423,6 +453,14 @@ textarea.form-control {
 .message.error {
   background-color: #fef0f0;
   color: #f56c6c;
-  border: 1px solid #fde2e2;
+  border: 1px solid #fbc4c4;
+}
+
+/* 内容长度提示 */
+.content-length {
+  font-size: 12px;
+  color: #999;
+  margin-top: 5px;
+  text-align: right;
 }
 </style>

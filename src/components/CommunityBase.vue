@@ -37,7 +37,20 @@
             <span class="post-author">作者: {{ post.author }}</span>
             <span class="post-date">{{ post.created_at }}</span>
           </div>
-          <p class="post-content">{{ post.content }}</p>
+          <p class="post-content" v-html="post.content"></p>
+          <!-- 图片展示 -->
+          <div v-if="post.images && post.images.length > 0" class="post-images-container">
+            <img 
+              :src="post.images[0]" 
+              class="post-image-preview" 
+              alt="帖子图片" 
+              @click="openImageViewer(post.images[0])" 
+            />
+            <!-- 半透明提示框 -->
+            <div class="image-tooltip" @click="goToPostDetail(post.id)">
+              ...
+            </div>
+          </div>
           <div class="post-stats">
             <span class="like-count">👍 {{ post.like_count }}</span>
             <span class="view-count">👁 {{ post.view_count }}</span>
@@ -206,6 +219,14 @@
         </div>
       </div>
     </div>
+    
+    <!-- 图片查看器模态框 -->
+    <div v-if="showImageViewer" class="image-viewer-overlay" @click="closeImageViewer">
+      <div class="image-viewer-content" @click.stop>
+        <img :src="currentImage" class="viewer-image" alt="放大查看" />
+        <button class="close-btn" @click="closeImageViewer">&times;</button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -289,6 +310,24 @@ const message = ref('');
 const messageType = ref<'success' | 'error' | 'info'>('info');
 const showMessage = ref(false);
 
+// 图片查看器状态
+const showImageViewer = ref(false);
+const currentImage = ref('');
+
+// 打开图片查看器
+const openImageViewer = (imageUrl: string) => {
+  currentImage.value = imageUrl;
+  showImageViewer.value = true;
+};
+
+// 关闭图片查看器
+const closeImageViewer = () => {
+  showImageViewer.value = false;
+  currentImage.value = '';
+};
+
+
+
 // 验证token有效性的函数
 const verifyToken = async () => {
   const storedToken = localStorage.getItem('token');
@@ -308,14 +347,14 @@ const verifyToken = async () => {
     if (!response.ok) {
       // 只清除无效的token，但保留用户名
       // 这符合stores.ts中的逻辑：只要有username就认为用户已登录
-      console.log('Token验证失败，清除无效token但保留用户登录状态');
+
       localStorage.removeItem('token'); // 只清除无效的token
       
       // 即使在生产环境中，也不清除用户名，保持与stores.ts一致的登录判断逻辑
       // 这样可以确保后端认为登录正常时，前端也显示为已登录状态
     }
   } catch (error) {
-    console.error('验证token时发生错误:', error);
+
     // 错误时不自动清除状态，避免影响用户体验
   }
 };
@@ -329,6 +368,8 @@ const goToPostDetail = (postId: number) => {
 const goToCreatePost = () => {
   router.push('/createPost');
 };
+
+
 
 // 提交评论或回复
 const submitComment = async (postId: number, parentId?: number) => {
@@ -454,7 +495,7 @@ const submitComment = async (postId: number, parentId?: number) => {
       await fetchCommentsForPost(postId);
     }
   } catch (error: any) {
-    console.error('评论错误:', error.message || error);
+
     // 显示错误消息
     showNotification(error.message || '评论失败，请稍后重试', 'error');
   } finally {
@@ -516,11 +557,103 @@ const fetchPosts = async () => {
         // 确保数据结构正确，从success和posts字段获取数据
         if (data.success && Array.isArray(data.posts)) {
           // 先保存帖子数据，不包含评论
-          const rawPosts = data.posts;
-          posts.value = rawPosts.map((post: any) => ({ 
-            ...post, 
+        const rawPosts = data.posts;
+        posts.value = rawPosts.map((post: any) => {
+          // 处理图片URL，确保是完整的URL
+          const imgUrls: string[] = [];
+          
+          // 先尝试使用专门的images字段
+          if (post.images) {
+            console.log('CommunityBase: 原始的images字段:', post.images);
+            let imagesData = post.images;
+            
+            // 确保images是数组格式
+            if (!Array.isArray(imagesData)) {
+              imagesData = [imagesData];
+              console.log('CommunityBase: 转换为数组后的images:', imagesData);
+            }
+            
+            console.log('CommunityBase: 处理前的图片数组长度:', imagesData.length);
+            // 处理图片URL，支持相对路径和绝对路径
+            for (const img of imagesData.slice(0, 9)) {
+              console.log('CommunityBase: 处理前的单个图片:', img, typeof img);
+              if (typeof img === 'string') {
+                // 处理可能的字符串前后空格
+                const trimmedImg = img.trim();
+                
+                // 根据不同的URL类型进行处理
+                let processedUrl = '';
+                if (trimmedImg.startsWith('http')) {
+                  // 已经是完整的URL，直接使用
+                  processedUrl = trimmedImg;
+                } else if (trimmedImg.startsWith('/')) {
+                  // 以/开头的路径，直接拼接baseURL
+                  processedUrl = `${baseURL}${trimmedImg}`;
+                } else if (trimmedImg.startsWith('images/')) {
+                  // 以images/开头的路径，添加baseURL前缀
+                  processedUrl = `${baseURL}/${trimmedImg}`;
+                } else {
+                  // 其他情况，假设是相对路径
+                  processedUrl = `${baseURL}/images/${trimmedImg}`;
+                }
+                
+                console.log('CommunityBase: 处理后的图片URL:', processedUrl);
+                imgUrls.push(processedUrl);
+              }
+            }
+            console.log('CommunityBase: 处理后的图片URL数组:', imgUrls);
+          }
+          
+          // 如果images字段为空或不存在，则从content中提取图片URL
+        if (imgUrls.length === 0) {
+          // 从content中提取图片URL
+          const imgRegex = /<img\s+src=["'](.*?)["']/g;
+          const imgMatches = post.content.match(imgRegex) || [];
+          
+          // 提取并处理图片URL
+          for (const match of imgMatches.slice(0, 9)) {
+            const srcMatch = match.match(/src=["'](.*?)["']/);
+            if (srcMatch && srcMatch[1]) {
+              const src = srcMatch[1].trim();
+              let processedUrl = '';
+              
+              // 根据不同的URL类型进行处理
+              if (src.startsWith('http')) {
+                // 已经是完整的URL，直接使用
+                processedUrl = src;
+              } else if (src.startsWith('/')) {
+                // 以/开头的路径，直接拼接baseURL
+                processedUrl = `${baseURL}${src}`;
+              } else if (src.startsWith('images/')) {
+                // 以images/开头的路径，添加baseURL前缀
+                processedUrl = `${baseURL}/${src}`;
+              } else {
+                // 其他情况，假设是相对路径
+                processedUrl = `${baseURL}/images/${src}`;
+              }
+              
+              imgUrls.push(processedUrl);
+            }
+          }
+          
+          post.image_count = imgUrls.length;
+          post.has_images = imgUrls.length > 0;
+        } else {
+          post.image_count = imgUrls.length;
+          post.has_images = true;
+        }
+          
+          // 更新images字段为处理后的完整URL数组
+          post.images = imgUrls;
+          
+          // 从content中移除所有img标签，确保内容区域只显示文本
+          post.content = post.content.replace(/<img[^>]*>/g, '');
+          
+          return {
+            ...post,
             comments: [] // 初始化为空数组，后续单独获取评论
-          }));
+          };
+        });
           
           // 为每个帖子获取评论
           await fetchCommentsForAllPosts(); 
@@ -535,13 +668,105 @@ const fetchPosts = async () => {
     } else if (response.ok) {
       const data = await response.json();
       // 确保数据结构正确，从success和posts字段获取数据
-      if (data.success && Array.isArray(data.posts)) {
-        // 先保存帖子数据，不包含评论
+        if (data.success && Array.isArray(data.posts)) {
+          // 先保存帖子数据，不包含评论
         const rawPosts = data.posts;
-        posts.value = rawPosts.map((post: any) => ({ 
-          ...post, 
-          comments: [] // 初始化为空数组，后续单独获取评论
-        }));
+        posts.value = rawPosts.map((post: any) => {
+          // 处理图片URL，确保是完整的URL
+          const imgUrls: string[] = [];
+          
+          // 先尝试使用专门的images字段
+          if (post.images) {
+            console.log('CommunityBase (response.ok): 原始的images字段:', post.images);
+            let imagesData = post.images;
+            
+            // 确保images是数组格式
+            if (!Array.isArray(imagesData)) {
+              imagesData = [imagesData];
+              console.log('CommunityBase (response.ok): 转换为数组后的images:', imagesData);
+            }
+            
+            console.log('CommunityBase (response.ok): 处理前的图片数组长度:', imagesData.length);
+            // 处理图片URL，支持相对路径和绝对路径
+            for (const img of imagesData.slice(0, 9)) {
+              console.log('CommunityBase (response.ok): 处理前的单个图片:', img, typeof img);
+              if (typeof img === 'string') {
+                // 处理可能的字符串前后空格
+                const trimmedImg = img.trim();
+                
+                // 根据不同的URL类型进行处理
+                let processedUrl = '';
+                if (trimmedImg.startsWith('http')) {
+                  // 已经是完整的URL，直接使用
+                  processedUrl = trimmedImg;
+                } else if (trimmedImg.startsWith('/')) {
+                  // 以/开头的路径，直接拼接baseURL
+                  processedUrl = `${baseURL}${trimmedImg}`;
+                } else if (trimmedImg.startsWith('images/')) {
+                  // 以images/开头的路径，添加baseURL前缀
+                  processedUrl = `${baseURL}/${trimmedImg}`;
+                } else {
+                  // 其他情况，假设是相对路径
+                  processedUrl = `${baseURL}/images/${trimmedImg}`;
+                }
+                
+                console.log('CommunityBase (response.ok): 处理后的图片URL:', processedUrl);
+                imgUrls.push(processedUrl);
+              }
+            }
+            console.log('CommunityBase (response.ok): 处理后的图片URL数组:', imgUrls);
+          }
+          
+          // 如果images字段为空或不存在，则从content中提取图片URL
+        if (imgUrls.length === 0) {
+          // 从content中提取图片URL
+          const imgRegex = /<img\s+src=["'](.*?)["']/g;
+          const imgMatches = post.content.match(imgRegex) || [];
+          
+          // 提取并处理图片URL
+          for (const match of imgMatches.slice(0, 9)) {
+            const srcMatch = match.match(/src=["'](.*?)["']/);
+            if (srcMatch && srcMatch[1]) {
+              const src = srcMatch[1].trim();
+              let processedUrl = '';
+              
+              // 根据不同的URL类型进行处理
+              if (src.startsWith('http')) {
+                // 已经是完整的URL，直接使用
+                processedUrl = src;
+              } else if (src.startsWith('/')) {
+                // 以/开头的路径，直接拼接baseURL
+                processedUrl = `${baseURL}${src}`;
+              } else if (src.startsWith('images/')) {
+                // 以images/开头的路径，添加baseURL前缀
+                processedUrl = `${baseURL}/${src}`;
+              } else {
+                // 其他情况，假设是相对路径
+                processedUrl = `${baseURL}/images/${src}`;
+              }
+              
+              imgUrls.push(processedUrl);
+            }
+          }
+          
+          post.image_count = imgUrls.length;
+          post.has_images = imgUrls.length > 0;
+        } else {
+          post.image_count = imgUrls.length;
+          post.has_images = true;
+        }
+          
+          // 更新images字段为处理后的完整URL数组
+          post.images = imgUrls;
+          
+          // 从content中移除所有img标签，确保内容区域只显示文本
+          post.content = post.content.replace(/<img[^>]*>/g, '');
+          
+          return {
+            ...post,
+            comments: [] // 初始化为空数组，后续单独获取评论
+          };
+        });
         
         // 为每个帖子获取评论
         await fetchCommentsForAllPosts();
@@ -555,7 +780,7 @@ const fetchPosts = async () => {
     // 触发帖子加载完成事件
     emit('posts-loaded', posts.value);
   } catch (error) {
-    console.error('获取帖子列表错误:', error);
+
   } finally {
     isLoadingPosts.value = false;
   }
@@ -691,7 +916,7 @@ const fetchCommentsForPost = async (postId: number) => {
         }
         
         // 添加调试日志，查看评论数据结构
-        console.log(`帖子${postId}的评论数据结构:`, comments);
+
         
         // 处理扁平的评论数据，构建嵌套结构
         const processedComments = buildNestedComments(comments);
@@ -724,7 +949,7 @@ const fetchCommentsForPost = async (postId: number) => {
       }
     }
   } catch (error) {
-    console.error(`获取帖子 ${postId} 的评论失败:`, error);
+
   }
 };
 
@@ -768,7 +993,7 @@ onMounted(() => {
   // 移除storage事件监听器，避免与App.vue中的监听器冲突
   // 监听器已在App.vue中全局设置
   
-  console.log('CommunityBase组件挂载');
+
 });
 </script>
 
@@ -831,6 +1056,227 @@ onMounted(() => {
 .filter-button.active:hover {
   background: #66b1ff;
   border-color: #66b1ff;
+}
+
+/* 帖子图片容器样式 */
+.post-images-container {
+  display: flex;
+  align-items: center;
+  margin: 12px 0;
+  padding: 0;
+  gap: 0;
+  width: fit-content;
+}
+
+/* 帖子图片样式 */
+.post-image-preview {
+  width: 120px;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 6px 0 0 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  display: block;
+  flex-shrink: 0;
+}
+
+/* 图片提示框样式 */
+.image-tooltip {
+  width: 120px;
+  height: 120px;
+  background-color: rgba(0, 0, 0, 0.5);
+  color: white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 24px;
+  border-radius: 0 6px 6px 0;
+  cursor: pointer;
+  transition: all 0.2s;
+  z-index: 10;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  border: none;
+  line-height: 1;
+  position: static;
+  flex-shrink: 0;
+}
+
+.image-tooltip:hover {
+  background-color: rgba(0, 0, 0, 0.7);
+}
+
+.post-image-preview:hover {
+  transform: scale(1.02);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* 图片查看器样式 */
+.image-viewer-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.9);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.image-viewer-content {
+  position: relative;
+  max-width: 90%;
+  max-height: 90%;
+}
+
+.viewer-image {
+  max-width: 100%;
+  max-height: 80vh;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+.close-btn {
+  position: absolute;
+  top: -30px;
+  right: -30px;
+  background-color: transparent;
+  color: white;
+  border: none;
+  font-size: 30px;
+  cursor: pointer;
+  padding: 5px;
+}
+
+.close-btn:hover {
+  color: #ccc;
+}
+
+/* 图片标注样式 */
+.post-has-images {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0;
+  padding: 6px 12px;
+  background-color: #f5f5f5;
+  border-radius: 16px;
+  font-size: 14px;
+  color: #666;
+}
+
+.image-marker {
+  font-size: 16px;
+}
+
+.image-count {
+  font-weight: 500;
+}
+
+/* 图片模态框样式 */
+.image-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.9);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.image-modal-content {
+  position: relative;
+  max-width: 90%;
+  max-height: 90%;
+  background-color: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.close-modal-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  border: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  font-size: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  z-index: 10;
+  transition: background-color 0.3s ease;
+}
+
+.close-modal-btn:hover {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+.modal-image-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  max-height: 80vh;
+  padding: 20px;
+}
+
+.modal-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 4px;
+}
+
+.image-navigation {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 20px;
+  background-color: #f8f8f8;
+}
+
+.nav-btn {
+  background: #409eff;
+  color: #fff;
+  border: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  font-size: 18px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.nav-btn:hover:not(:disabled) {
+  background: #66b1ff;
+}
+
+.nav-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.image-counter {
+  font-size: 14px;
+  color: #666;
 }
 
 .create-post-button {
